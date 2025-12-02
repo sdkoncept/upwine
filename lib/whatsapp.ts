@@ -1,27 +1,119 @@
 // WhatsApp notification utility
-// You'll need to integrate with a WhatsApp API service like Twilio, WhatsApp Business API, or a local service
+// Supports multiple WhatsApp API services
 
 export async function sendWhatsAppMessage(phone: string, message: string) {
   // Remove any non-digit characters and add country code if needed
   const cleanPhone = phone.replace(/\D/g, '');
   const formattedPhone = cleanPhone.startsWith('234') ? cleanPhone : `234${cleanPhone.slice(1)}`;
 
-  // TODO: Integrate with your WhatsApp API service
-  // Example with Twilio WhatsApp API:
-  // const accountSid = process.env.TWILIO_ACCOUNT_SID;
-  // const authToken = process.env.TWILIO_AUTH_TOKEN;
-  // const client = require('twilio')(accountSid, authToken);
-  // 
-  // await client.messages.create({
-  //   from: 'whatsapp:+14155238886',
-  //   to: `whatsapp:+${formattedPhone}`,
-  //   body: message
-  // });
-
-  console.log(`WhatsApp message to ${formattedPhone}: ${message}`);
+  // Check which WhatsApp service is configured
+  const whatsappService = process.env.WHATSAPP_SERVICE || 'none';
   
-  // For now, return a promise that resolves (you can implement actual API call later)
-  return Promise.resolve();
+  try {
+    switch (whatsappService.toLowerCase()) {
+      case 'twilio':
+        return await sendViaTwilio(formattedPhone, message);
+      case 'whatsapp-api':
+        return await sendViaWhatsAppAPI(formattedPhone, message);
+      case 'green-api':
+        return await sendViaGreenAPI(formattedPhone, message);
+      default:
+        // Fallback: just log (for development/testing)
+        console.log(`[WhatsApp] Message to ${formattedPhone}: ${message}`);
+        return Promise.resolve();
+    }
+  } catch (error) {
+    console.error('Error sending WhatsApp message:', error);
+    // Don't throw - we don't want to fail orders if WhatsApp fails
+    return Promise.resolve();
+  }
+}
+
+// Twilio WhatsApp API integration
+async function sendViaTwilio(phone: string, message: string) {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const fromNumber = process.env.TWILIO_WHATSAPP_FROM;
+
+  if (!accountSid || !authToken || !fromNumber) {
+    console.warn('Twilio credentials not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_WHATSAPP_FROM');
+    return Promise.resolve();
+  }
+
+  // Dynamic import to avoid requiring twilio if not used
+  const twilio = await import('twilio');
+  const client = twilio.default(accountSid, authToken);
+
+  await client.messages.create({
+    from: `whatsapp:${fromNumber}`,
+    to: `whatsapp:+${phone}`,
+    body: message
+  });
+
+  console.log(`WhatsApp message sent via Twilio to +${phone}`);
+}
+
+// WhatsApp Business API (via Meta/Facebook)
+async function sendViaWhatsAppAPI(phone: string, message: string) {
+  const apiUrl = process.env.WHATSAPP_API_URL;
+  const apiToken = process.env.WHATSAPP_API_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+  if (!apiUrl || !apiToken || !phoneNumberId) {
+    console.warn('WhatsApp API credentials not configured');
+    return Promise.resolve();
+  }
+
+  const response = await fetch(`${apiUrl}/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to: phone,
+      type: 'text',
+      text: { body: message }
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`WhatsApp API error: ${error}`);
+  }
+
+  console.log(`WhatsApp message sent via WhatsApp API to +${phone}`);
+}
+
+// Green API (alternative WhatsApp API service)
+async function sendViaGreenAPI(phone: string, message: string) {
+  const apiUrl = process.env.GREEN_API_URL || 'https://api.green-api.com';
+  const idInstance = process.env.GREEN_API_ID_INSTANCE;
+  const apiTokenInstance = process.env.GREEN_API_TOKEN_INSTANCE;
+
+  if (!idInstance || !apiTokenInstance) {
+    console.warn('Green API credentials not configured');
+    return Promise.resolve();
+  }
+
+  const response = await fetch(`${apiUrl}/waInstance${idInstance}/sendMessage/${apiTokenInstance}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      chatId: `${phone}@c.us`,
+      message: message
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Green API error: ${error}`);
+  }
+
+  console.log(`WhatsApp message sent via Green API to +${phone}`);
 }
 
 export function formatOrderConfirmation(order: {
