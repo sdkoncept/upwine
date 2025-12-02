@@ -13,13 +13,23 @@ function OrderConfirmationContent() {
   useEffect(() => {
     if (orderNumber) {
       fetch(`/api/orders/${orderNumber}`)
-        .then(res => res.json())
+        .then(res => {
+          if (!res.ok) {
+            throw new Error('Order not found')
+          }
+          return res.json()
+        })
         .then(data => {
-          setOrder(data)
+          if (data.error) {
+            setOrder(null)
+          } else {
+            setOrder(data)
+          }
           setLoading(false)
         })
         .catch(err => {
           console.error('Error fetching order:', err)
+          setOrder(null)
           setLoading(false)
         })
     } else {
@@ -71,19 +81,21 @@ function OrderConfirmationContent() {
             <div className="space-y-2 text-gray-700">
               <div className="flex justify-between">
                 <span className="font-semibold">Customer:</span>
-                <span>{order.customer_name}</span>
+                <span>{order.customer_name || 'N/A'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="font-semibold">Phone:</span>
-                <span>{order.phone}</span>
+                <span>{order.phone || 'N/A'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="font-semibold">Quantity:</span>
-                <span>{order.quantity} bottle(s)</span>
+                <span>{order.quantity || 0} bottle(s)</span>
               </div>
               <div className="flex justify-between">
                 <span className="font-semibold">Total Amount:</span>
-                <span className="text-lg font-bold text-primary">₦{order.total_amount.toLocaleString()}</span>
+                <span className="text-lg font-bold text-primary">
+                  ₦{order.total_amount ? order.total_amount.toLocaleString() : '0'}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="font-semibold">Payment Method:</span>
@@ -116,12 +128,16 @@ function OrderConfirmationContent() {
               <h3 className="text-xl font-semibold text-blue-800 mb-3">
                 🚚 Delivery Information
               </h3>
-              <p className="text-blue-700 mb-2">
-                <strong>Address:</strong> {order.address}
-              </p>
-              <p className="text-blue-700">
-                Our dispatch rider will contact you at <strong>{order.phone}</strong> before arrival.
-              </p>
+              {order.address && (
+                <p className="text-blue-700 mb-2">
+                  <strong>Address:</strong> {order.address}
+                </p>
+              )}
+              {order.phone && (
+                <p className="text-blue-700">
+                  Our dispatch rider will contact you at <strong>{order.phone}</strong> before arrival.
+                </p>
+              )}
             </div>
           )}
 

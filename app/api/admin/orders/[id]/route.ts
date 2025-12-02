@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server'
 import { updateOrderStatus } from '@/lib/db'
 
+export const dynamic = 'force-dynamic'
+
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const body = await request.json()
     const { status } = body
 
@@ -16,7 +19,7 @@ export async function PATCH(
       )
     }
 
-    updateOrderStatus(parseInt(params.id), status)
+    updateOrderStatus(parseInt(id), status)
 
     return NextResponse.json({ success: true })
   } catch (error) {

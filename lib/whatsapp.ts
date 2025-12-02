@@ -2,28 +2,41 @@
 // Supports multiple WhatsApp API services
 
 export async function sendWhatsAppMessage(phone: string, message: string) {
+  console.log('[WhatsApp] sendWhatsAppMessage called with phone:', phone);
+  
   // Remove any non-digit characters and add country code if needed
   const cleanPhone = phone.replace(/\D/g, '');
   const formattedPhone = cleanPhone.startsWith('234') ? cleanPhone : `234${cleanPhone.slice(1)}`;
+  console.log('[WhatsApp] Formatted phone:', formattedPhone);
 
   // Check which WhatsApp service is configured
   const whatsappService = process.env.WHATSAPP_SERVICE || 'none';
+  console.log('[WhatsApp] Service configured:', whatsappService);
+  console.log('[WhatsApp] Environment check:', {
+    WHATSAPP_SERVICE: process.env.WHATSAPP_SERVICE,
+    TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID ? 'SET' : 'NOT SET',
+    TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN ? 'SET' : 'NOT SET',
+    TWILIO_WHATSAPP_FROM: process.env.TWILIO_WHATSAPP_FROM || 'NOT SET'
+  });
   
   try {
     switch (whatsappService.toLowerCase()) {
       case 'twilio':
+        console.log('[WhatsApp] Attempting to send via Twilio...');
         return await sendViaTwilio(formattedPhone, message);
       case 'whatsapp-api':
+        console.log('[WhatsApp] Attempting to send via WhatsApp API...');
         return await sendViaWhatsAppAPI(formattedPhone, message);
       case 'green-api':
+        console.log('[WhatsApp] Attempting to send via Green API...');
         return await sendViaGreenAPI(formattedPhone, message);
       default:
         // Fallback: just log (for development/testing)
-        console.log(`[WhatsApp] Message to ${formattedPhone}: ${message}`);
+        console.log(`[WhatsApp] No service configured. Would send to ${formattedPhone}: ${message.substring(0, 50)}...`);
         return Promise.resolve();
     }
   } catch (error) {
-    console.error('Error sending WhatsApp message:', error);
+    console.error('[WhatsApp] Error sending WhatsApp message:', error);
     // Don't throw - we don't want to fail orders if WhatsApp fails
     return Promise.resolve();
   }
@@ -31,26 +44,47 @@ export async function sendWhatsAppMessage(phone: string, message: string) {
 
 // Twilio WhatsApp API integration
 async function sendViaTwilio(phone: string, message: string) {
+  console.log('[WhatsApp/Twilio] Starting Twilio send...');
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   const fromNumber = process.env.TWILIO_WHATSAPP_FROM;
 
+  console.log('[WhatsApp/Twilio] Credentials check:', {
+    accountSid: accountSid ? `${accountSid.substring(0, 10)}...` : 'MISSING',
+    authToken: authToken ? 'SET' : 'MISSING',
+    fromNumber: fromNumber || 'MISSING'
+  });
+
   if (!accountSid || !authToken || !fromNumber) {
-    console.warn('Twilio credentials not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_WHATSAPP_FROM');
+    console.error('[WhatsApp/Twilio] Twilio credentials not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_WHATSAPP_FROM');
     return Promise.resolve();
   }
 
-  // Dynamic import to avoid requiring twilio if not used
-  const twilio = await import('twilio');
-  const client = twilio.default(accountSid, authToken);
+  try {
+    console.log('[WhatsApp/Twilio] Importing Twilio library...');
+    // Dynamic import to avoid requiring twilio if not used
+    const twilio = await import('twilio');
+    const client = twilio.default(accountSid, authToken);
 
-  await client.messages.create({
-    from: `whatsapp:${fromNumber}`,
-    to: `whatsapp:+${phone}`,
-    body: message
-  });
+    console.log('[WhatsApp/Twilio] Creating message:', {
+      from: `whatsapp:${fromNumber}`,
+      to: `whatsapp:+${phone}`,
+      messageLength: message.length
+    });
 
-  console.log(`WhatsApp message sent via Twilio to +${phone}`);
+    const result = await client.messages.create({
+      from: `whatsapp:${fromNumber}`,
+      to: `whatsapp:+${phone}`,
+      body: message
+    });
+
+    console.log(`[WhatsApp/Twilio] ✅ Message sent successfully! SID: ${result.sid}`);
+    console.log(`[WhatsApp/Twilio] Message sent via Twilio to +${phone}`);
+  } catch (error: any) {
+    console.error('[WhatsApp/Twilio] ❌ Error sending message:', error.message);
+    console.error('[WhatsApp/Twilio] Full error:', error);
+    throw error; // Re-throw so it's caught by outer try-catch
+  }
 }
 
 // WhatsApp Business API (via Meta/Facebook)

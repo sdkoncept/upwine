@@ -92,24 +92,35 @@ export async function POST(request: Request) {
 
     // Send WhatsApp confirmation to customer (only for COD, online payment sends receipt after payment)
     if (payment_method === 'cod') {
+      console.log('[Order API] Sending customer WhatsApp for COD order...');
       try {
         const customerMessage = formatOrderConfirmation(order)
+        console.log('[Order API] Customer message formatted, sending to:', phone);
         await sendWhatsAppMessage(phone, customerMessage)
+        console.log('[Order API] Customer WhatsApp sent successfully');
       } catch (error) {
-        console.error('Error sending customer WhatsApp:', error)
+        console.error('[Order API] Error sending customer WhatsApp:', error)
         // Don't fail the order if WhatsApp fails
       }
+    } else {
+      console.log('[Order API] Skipping customer WhatsApp (not COD)');
     }
 
     // Send WhatsApp notification to admin
+    console.log('[Order API] Sending admin WhatsApp notification...');
     try {
       const adminPhone = getSetting('admin_phone')
+      console.log('[Order API] Admin phone from DB:', adminPhone);
       if (adminPhone) {
         const adminMessage = formatAdminNotification(order)
+        console.log('[Order API] Admin message formatted, sending to:', adminPhone);
         await sendWhatsAppMessage(adminPhone, adminMessage)
+        console.log('[Order API] Admin WhatsApp sent successfully');
+      } else {
+        console.warn('[Order API] Admin phone not set in database!');
       }
     } catch (error) {
-      console.error('Error sending admin WhatsApp:', error)
+      console.error('[Order API] Error sending admin WhatsApp:', error)
       // Don't fail the order if WhatsApp fails
     }
 

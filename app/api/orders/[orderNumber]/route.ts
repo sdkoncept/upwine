@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server'
 import { getOrder } from '@/lib/db'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(
   request: Request,
-  { params }: { params: { orderNumber: string } }
+  { params }: { params: Promise<{ orderNumber: string }> }
 ) {
   try {
-    const order = getOrder(params.orderNumber)
+    const { orderNumber } = await params
+    const order = getOrder(orderNumber)
     
     if (!order) {
       return NextResponse.json(
