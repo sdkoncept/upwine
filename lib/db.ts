@@ -215,6 +215,142 @@ export function getOrderByPaystackReference(reference: string) {
   return db.prepare('SELECT * FROM orders WHERE paystack_reference = ?').get(reference);
 }
 
+/**
+ * Get sales statistics filtered by date range
+ */
+export function getSalesStats(startDate?: string, endDate?: string) {
+  let query = `
+    SELECT 
+      COUNT(*) as total_orders,
+      SUM(quantity) as total_bottles_sold,
+      SUM(total_amount) as total_revenue,
+      SUM(CASE WHEN payment_status = 'paid' THEN total_amount ELSE 0 END) as paid_revenue,
+      SUM(CASE WHEN payment_method = 'cod' THEN total_amount ELSE 0 END) as cod_revenue,
+      SUM(CASE WHEN payment_method = 'online' AND payment_status = 'paid' THEN total_amount ELSE 0 END) as online_revenue
+    FROM orders
+    WHERE 1=1
+  `
+  
+  const params: any[] = []
+  
+  if (startDate) {
+    query += ' AND DATE(created_at) >= DATE(?)'
+    params.push(startDate)
+  }
+  
+  if (endDate) {
+    query += ' AND DATE(created_at) <= DATE(?)'
+    params.push(endDate)
+  }
+  
+  return db.prepare(query).get(...params) as {
+    total_orders: number
+    total_bottles_sold: number
+    total_revenue: number
+    paid_revenue: number
+    cod_revenue: number
+    online_revenue: number
+  }
+}
+
+/**
+ * Get sales data grouped by date for charts
+ */
+export function getSalesByDate(startDate: string, endDate: string, groupBy: 'day' | 'week' | 'month' | 'year' = 'day') {
+  let dateFormat: string
+  let groupByClause: string
+  
+  switch (groupBy) {
+    case 'day':
+      dateFormat = "DATE(created_at)"
+      groupByClause = "DATE(created_at)"
+      break
+    case 'week':
+      dateFormat = "strftime('%Y-W%W', created_at)"
+      groupByClause = "strftime('%Y-W%W', created_at)"
+      break
+    case 'month':
+      dateFormat = "strftime('%Y-%m', created_at)"
+      groupByClause = "strftime('%Y-%m', created_at)"
+      break
+    case 'year':
+      dateFormat = "strftime('%Y', created_at)"
+      groupByClause = "strftime('%Y', created_at)"
+      break
+  }
+  
+  const query = `
+    SELECT 
+      ${dateFormat} as date,
+      COUNT(*) as orders_count,
+      SUM(quantity) as bottles_sold,
+      SUM(total_amount) as revenue
+    FROM orders
+    WHERE DATE(created_at) >= DATE(?) AND DATE(created_at) <= DATE(?)
+    GROUP BY ${groupByClause}
+    ORDER BY date ASC
+  `
+  
+  return db.prepare(query).all(startDate, endDate) as Array<{
+    date: string
+    orders_count: number
+    bottles_sold: number
+    revenue: number
+  }>
+}
+
+/**
+ * Get orders for CSV export
+ */
+export function getOrdersForExport(startDate?: string, endDate?: string) {
+  let query = `
+    SELECT 
+      order_number,
+      customer_name,
+      phone,
+      email,
+      quantity,
+      total_amount,
+      delivery_fee,
+      delivery_type,
+      payment_method,
+      payment_status,
+      status,
+      created_at
+    FROM orders
+    WHERE 1=1
+  `
+  
+  const params: any[] = []
+  
+  if (startDate) {
+    query += ' AND DATE(created_at) >= DATE(?)'
+    params.push(startDate)
+  }
+  
+  if (endDate) {
+    query += ' AND DATE(created_at) <= DATE(?)'
+    params.push(endDate)
+  }
+  
+  query += ' ORDER BY created_at DESC'
+  
+  return db.prepare(query).all(...params) as Array<{
+    order_number: string
+    customer_name: string
+    phone: string
+    email: string | null
+    quantity: number
+    total_amount: number
+    delivery_fee: number
+    delivery_type: string
+    payment_method: string
+    payment_status: string
+    status: string
+    created_at: string
+  }>
+}
+
 // Migration function to add new columns to existing database
 export function migrateDatabase() {
   try {
