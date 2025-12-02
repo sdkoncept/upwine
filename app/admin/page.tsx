@@ -1,31 +1,61 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 interface Order {
   id: number
   order_number: string
   customer_name: string
   phone: string
+  email?: string
+  address?: string
   quantity: number
+  delivery_fee: number
   total_amount: number
   delivery_type: string
   payment_method: string
+  payment_status: string
+  payment_reference?: string
+  paystack_reference?: string
   status: string
+  delivery_time?: string
   created_at: string
-  address?: string
+  updated_at?: string
 }
 
 export default function AdminPage() {
+  const router = useRouter()
   const [orders, setOrders] = useState<Order[]>([])
   const [stock, setStock] = useState({ available_bottles: 100, total_bottles: 100 })
   const [newStock, setNewStock] = useState(100)
   const [loading, setLoading] = useState(true)
+  const [authenticated, setAuthenticated] = useState(false)
+  const [checkingAuth, setCheckingAuth] = useState(true)
   const [activeTab, setActiveTab] = useState<'orders' | 'stock'>('orders')
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
+  const [showOrderDetails, setShowOrderDetails] = useState(false)
 
   useEffect(() => {
-    fetchData()
+    checkAuth()
   }, [])
+
+  const checkAuth = async () => {
+    try {
+      const res = await fetch('/api/admin/auth')
+      const data = await res.json()
+      if (data.authenticated) {
+        setAuthenticated(true)
+        fetchData()
+      } else {
+        router.push('/admin/login')
+      }
+    } catch (error) {
+      router.push('/admin/login')
+    } finally {
+      setCheckingAuth(false)
+    }
+  }
 
   const fetchData = async () => {
     setLoading(true)
@@ -46,6 +76,15 @@ export default function AdminPage() {
     }
   }
 
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/admin/auth', { method: 'DELETE' })
+      router.push('/admin/login')
+    } catch (error) {
+      router.push('/admin/login')
+    }
+  }
+
   const updateOrderStatus = async (orderId: number, status: string) => {
     try {
       await fetch(`/api/admin/orders/${orderId}`, {
@@ -54,6 +93,9 @@ export default function AdminPage() {
         body: JSON.stringify({ status })
       })
       fetchData()
+      if (selectedOrder?.id === orderId) {
+        setSelectedOrder({ ...selectedOrder, status })
+      }
     } catch (error) {
       console.error('Error updating order:', error)
       alert('Failed to update order status')
@@ -77,9 +119,32 @@ export default function AdminPage() {
     }
   }
 
+  const openOrderDetails = (order: Order) => {
+    setSelectedOrder(order)
+    setShowOrderDetails(true)
+  }
+
+  const calculateSubtotal = (order: Order) => {
+    return order.total_amount - order.delivery_fee
+  }
+
   const pendingOrders = orders.filter(o => o.status === 'pending')
   const completedOrders = orders.filter(o => o.status === 'completed')
   const deliveredOrders = orders.filter(o => o.status === 'delivered')
+
+  if (checkingAuth) {
+    return (
+      <main className="min-h-screen py-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <div className="text-xl">Checking authentication...</div>
+        </div>
+      </main>
+    )
+  }
+
+  if (!authenticated) {
+    return null
+  }
 
   if (loading) {
     return (
@@ -94,9 +159,17 @@ export default function AdminPage() {
   return (
     <main className="min-h-screen py-16 bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h1 className="text-4xl font-bold text-primary mb-8">
-          Admin Dashboard
-        </h1>
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-4xl font-bold text-primary">
+            Admin Dashboard
+          </h1>
+          <button
+            onClick={handleLogout}
+            className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition"
+          >
+            Logout
+          </button>
+        </div>
 
         {/* Tabs */}
         <div className="mb-6 border-b border-gray-200">
@@ -156,6 +229,7 @@ export default function AdminPage() {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payment</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -163,12 +237,32 @@ export default function AdminPage() {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {orders.map((order) => (
-                      <tr key={order.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">{order.order_number}</td>
+                      <tr key={order.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <button
+                            onClick={() => openOrderDetails(order)}
+                            className="text-primary hover:underline"
+                          >
+                            {order.order_number}
+                          </button>
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">{order.customer_name}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">{order.phone}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <a href={`tel:${order.phone}`} className="text-blue-600 hover:underline">
+                            {order.phone}
+                          </a>
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">{order.quantity}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">₦{order.total_amount.toLocaleString()}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold">₦{order.total_amount.toLocaleString()}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <span className={`px-2 py-1 text-xs rounded-full ${
+                            order.payment_status === 'paid' ? 'bg-green-100 text-green-800' :
+                            order.payment_method === 'cod' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {order.payment_method === 'cod' ? 'COD' : order.payment_status === 'paid' ? 'Paid' : 'Pending'}
+                          </span>
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                           {order.delivery_type === 'pickup' ? '📍 Pickup' : '🚚 Delivery'}
                         </td>
@@ -182,30 +276,32 @@ export default function AdminPage() {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          {order.status === 'pending' && (
-                            <div className="flex space-x-2">
-                              <button
-                                onClick={() => updateOrderStatus(order.id, 'completed')}
-                                className="text-blue-600 hover:text-blue-800"
-                              >
-                                Mark Complete
-                              </button>
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => openOrderDetails(order)}
+                              className="text-blue-600 hover:text-blue-800"
+                            >
+                              View
+                            </button>
+                            {order.status === 'pending' && (
+                              <>
+                                <button
+                                  onClick={() => updateOrderStatus(order.id, 'completed')}
+                                  className="text-green-600 hover:text-green-800"
+                                >
+                                  Complete
+                                </button>
+                              </>
+                            )}
+                            {order.status === 'completed' && (
                               <button
                                 onClick={() => updateOrderStatus(order.id, 'delivered')}
                                 className="text-green-600 hover:text-green-800"
                               >
-                                Mark Delivered
+                                Deliver
                               </button>
-                            </div>
-                          )}
-                          {order.status === 'completed' && (
-                            <button
-                              onClick={() => updateOrderStatus(order.id, 'delivered')}
-                              className="text-green-600 hover:text-green-800"
-                            >
-                              Mark Delivered
-                            </button>
-                          )}
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -264,8 +360,215 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+
+        {/* Order Details Modal */}
+        {showOrderDetails && selectedOrder && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-primary">Order Details</h2>
+                <button
+                  onClick={() => setShowOrderDetails(false)}
+                  className="text-gray-500 hover:text-gray-700 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+              
+              <div className="p-6 space-y-6">
+                {/* Order Header */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-sm text-gray-500">Order Number</div>
+                    <div className="text-lg font-semibold">{selectedOrder.order_number}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-500">Order Date</div>
+                    <div className="text-lg">{new Date(selectedOrder.created_at).toLocaleString()}</div>
+                  </div>
+                </div>
+
+                {/* Customer Information */}
+                <div className="border-t pt-4">
+                  <h3 className="text-lg font-semibold mb-3">Customer Information</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-sm text-gray-500">Name</div>
+                      <div className="font-medium">{selectedOrder.customer_name}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500">Phone</div>
+                      <div className="font-medium">
+                        <a href={`tel:${selectedOrder.phone}`} className="text-blue-600 hover:underline">
+                          {selectedOrder.phone}
+                        </a>
+                      </div>
+                    </div>
+                    {selectedOrder.email && (
+                      <div>
+                        <div className="text-sm text-gray-500">Email</div>
+                        <div className="font-medium">
+                          <a href={`mailto:${selectedOrder.email}`} className="text-blue-600 hover:underline">
+                            {selectedOrder.email}
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Delivery Information */}
+                <div className="border-t pt-4">
+                  <h3 className="text-lg font-semibold mb-3">Delivery Information</h3>
+                  <div className="space-y-2">
+                    <div>
+                      <div className="text-sm text-gray-500">Delivery Type</div>
+                      <div className="font-medium">
+                        {selectedOrder.delivery_type === 'pickup' ? '📍 Pickup' : '🚚 Delivery'}
+                      </div>
+                    </div>
+                    {selectedOrder.delivery_type === 'delivery' && selectedOrder.address && (
+                      <div>
+                        <div className="text-sm text-gray-500">Delivery Address</div>
+                        <div className="font-medium">{selectedOrder.address}</div>
+                      </div>
+                    )}
+                    {selectedOrder.delivery_type === 'pickup' && (
+                      <div>
+                        <div className="text-sm text-gray-500">Pickup Location</div>
+                        <div className="font-medium">24 Tony Anenih Avenue, G.R.A, Benin City</div>
+                      </div>
+                    )}
+                    {selectedOrder.delivery_time && (
+                      <div>
+                        <div className="text-sm text-gray-500">Preferred Delivery Time</div>
+                        <div className="font-medium">{selectedOrder.delivery_time}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Payment Information */}
+                <div className="border-t pt-4">
+                  <h3 className="text-lg font-semibold mb-3">Payment Information</h3>
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <div className="text-sm text-gray-500">Payment Method</div>
+                        <div className="font-medium">
+                          {selectedOrder.payment_method === 'cod' ? '💵 Cash on Delivery' : '💳 Online Payment'}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-500">Payment Status</div>
+                        <div>
+                          <span className={`px-2 py-1 text-xs rounded-full ${
+                            selectedOrder.payment_status === 'paid' ? 'bg-green-100 text-green-800' :
+                            selectedOrder.payment_method === 'cod' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {selectedOrder.payment_method === 'cod' ? 'Pending (COD)' : 
+                             selectedOrder.payment_status === 'paid' ? 'Paid' : 'Pending'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    {selectedOrder.payment_method === 'online' && selectedOrder.paystack_reference && (
+                      <div>
+                        <div className="text-sm text-gray-500">Paystack Reference</div>
+                        <div className="font-mono text-sm">{selectedOrder.paystack_reference}</div>
+                      </div>
+                    )}
+                    {selectedOrder.payment_reference && (
+                      <div>
+                        <div className="text-sm text-gray-500">Payment Reference</div>
+                        <div className="font-mono text-sm">{selectedOrder.payment_reference}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Order Summary */}
+                <div className="border-t pt-4">
+                  <h3 className="text-lg font-semibold mb-3">Order Summary</h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Quantity</span>
+                      <span className="font-medium">{selectedOrder.quantity} bottle{selectedOrder.quantity !== 1 ? 's' : ''}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Price per Bottle</span>
+                      <span className="font-medium">₦1,200</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Subtotal</span>
+                      <span className="font-medium">₦{calculateSubtotal(selectedOrder).toLocaleString()}</span>
+                    </div>
+                    {selectedOrder.delivery_fee > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Delivery Fee</span>
+                        <span className="font-medium">₦{selectedOrder.delivery_fee.toLocaleString()}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between border-t pt-2 font-bold text-lg">
+                      <span>Total Amount</span>
+                      <span className="text-primary">₦{selectedOrder.total_amount.toLocaleString()}</span>
+                    </div>
+                    {selectedOrder.payment_method === 'cod' && (
+                      <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                        <div className="text-sm text-yellow-800">
+                          <strong>COD Amount:</strong> ₦{selectedOrder.total_amount.toLocaleString()} to be collected on delivery
+                        </div>
+                      </div>
+                    )}
+                    {selectedOrder.payment_method === 'online' && selectedOrder.payment_status === 'paid' && (
+                      <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded">
+                        <div className="text-sm text-green-800">
+                          <strong>Paid:</strong> ₦{selectedOrder.total_amount.toLocaleString()} via Paystack
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Order Status */}
+                <div className="border-t pt-4">
+                  <h3 className="text-lg font-semibold mb-3">Order Status</h3>
+                  <div className="flex items-center space-x-4">
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                      selectedOrder.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                      selectedOrder.status === 'completed' ? 'bg-blue-100 text-blue-800' :
+                      'bg-green-100 text-green-800'
+                    }`}>
+                      {selectedOrder.status.charAt(0).toUpperCase() + selectedOrder.status.slice(1)}
+                    </span>
+                    {selectedOrder.status === 'pending' && (
+                      <button
+                        onClick={() => {
+                          updateOrderStatus(selectedOrder.id, 'completed')
+                        }}
+                        className="bg-blue-500 text-white px-4 py-1 rounded hover:bg-blue-600"
+                      >
+                        Mark as Completed
+                      </button>
+                    )}
+                    {selectedOrder.status === 'completed' && (
+                      <button
+                        onClick={() => {
+                          updateOrderStatus(selectedOrder.id, 'delivered')
+                        }}
+                        className="bg-green-500 text-white px-4 py-1 rounded hover:bg-green-600"
+                      >
+                        Mark as Delivered
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </main>
   )
 }
-
