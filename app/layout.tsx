@@ -1,13 +1,16 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { DM_Sans } from 'next/font/google'
 import './globals.css'
 import Link from 'next/link'
 
-const inter = Inter({ subsets: ['latin'] })
+const dmSans = DM_Sans({ 
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+})
 
 export const metadata: Metadata = {
-  title: 'Upwine - Fresh Natural Palm Wine from Our Farm',
-  description: 'Fresh palm wine tapped and bottled from our farm in Benin City. Natural, clean, and delivered fresh.',
+  title: 'Upwyne - Premium Palm Wine from Edo State',
+  description: 'Delightful and fruity palm wine crafted from the heart of Edo State. Fresh, natural, and delivered to your doorstep.',
 }
 
 export default function RootLayout({
@@ -17,61 +20,130 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
-        <nav className="bg-white shadow-md">
+      <body className={dmSans.className}>
+        {/* Navigation */}
+        <nav className="bg-white/95 backdrop-blur-md shadow-sm sticky top-0 z-50 border-b border-[#e8f0ec]">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center h-16">
-              <Link href="/" className="text-2xl font-bold text-primary">
-                Upwine
+            <div className="flex justify-between items-center h-18 py-4">
+              <Link href="/" className="text-2xl font-bold text-[#2d5a4a] tracking-tight">
+                Upwyne
               </Link>
-              <div className="flex space-x-6">
-                <Link href="/" className="text-gray-700 hover:text-primary transition">
+              <div className="hidden md:flex items-center space-x-8">
+                <Link href="/" className="text-[#5a8a7a] hover:text-[#2d5a4a] transition-colors font-medium">
                   Home
                 </Link>
-                <Link href="/order" className="text-gray-700 hover:text-primary transition">
+                <Link href="/order" className="text-[#5a8a7a] hover:text-[#2d5a4a] transition-colors font-medium">
                   Order
                 </Link>
-                <Link href="/about" className="text-gray-700 hover:text-primary transition">
+                <Link href="/about" className="text-[#5a8a7a] hover:text-[#2d5a4a] transition-colors font-medium">
                   About
                 </Link>
-                <Link href="/contact" className="text-gray-700 hover:text-primary transition">
+                <Link href="/contact" className="text-[#5a8a7a] hover:text-[#2d5a4a] transition-colors font-medium">
                   Contact
                 </Link>
-                <Link href="/admin" className="text-gray-700 hover:text-primary transition">
-                  Admin
+                <Link 
+                  href="/order" 
+                  className="bg-[#2d5a4a] text-white px-6 py-2.5 rounded-full font-semibold hover:bg-[#1e4035] transition-all duration-300 shadow-md hover:shadow-lg"
+                >
+                  Order Now
+                </Link>
+              </div>
+              {/* Mobile menu button */}
+              <div className="md:hidden">
+                <Link 
+                  href="/order" 
+                  className="bg-[#2d5a4a] text-white px-5 py-2 rounded-full font-semibold text-sm"
+                >
+                  Order
                 </Link>
               </div>
             </div>
           </div>
         </nav>
+
         {children}
-        <footer className="bg-gray-800 text-white mt-16">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div>
-                <h3 className="text-xl font-bold mb-4">Upwine</h3>
-                <p className="text-gray-300">Fresh natural palm wine from our farm in Benin City.</p>
-              </div>
-              <div>
-                <h3 className="text-xl font-bold mb-4">Quick Links</h3>
-                <ul className="space-y-2 text-gray-300">
-                  <li><Link href="/" className="hover:text-white">Home</Link></li>
-                  <li><Link href="/order" className="hover:text-white">Order Now</Link></li>
-                  <li><Link href="/about" className="hover:text-white">About Us</Link></li>
-                  <li><Link href="/contact" className="hover:text-white">Contact</Link></li>
-                </ul>
-              </div>
-              <div>
-                <h3 className="text-xl font-bold mb-4">Contact</h3>
-                <p className="text-gray-300">
-                  📍 24 Tony Anenih Avenue, G.R.A, Benin City<br />
-                  📞 Call or WhatsApp us<br />
-                  ⏰ Pickup: 10 AM - 6 PM
+
+        {/* Footer */}
+        <footer className="bg-[#1a3d32] text-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
+              {/* Brand */}
+              <div className="md:col-span-1">
+                <h3 className="text-2xl font-bold mb-4">Upwyne</h3>
+                <p className="text-[#a8d4c0] leading-relaxed">
+                  Premium palm wine selection. Delightful and fruity, crafted from the heart of Edo State.
                 </p>
               </div>
+
+              {/* Quick Links */}
+              <div>
+                <h4 className="text-lg font-semibold mb-4 text-white">Quick Links</h4>
+                <ul className="space-y-3">
+                  <li>
+                    <Link href="/" className="text-[#a8d4c0] hover:text-white transition-colors">
+                      Home
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/order" className="text-[#a8d4c0] hover:text-white transition-colors">
+                      Order Now
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/about" className="text-[#a8d4c0] hover:text-white transition-colors">
+                      About Us
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/contact" className="text-[#a8d4c0] hover:text-white transition-colors">
+                      Contact
+                    </Link>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Contact Info */}
+              <div>
+                <h4 className="text-lg font-semibold mb-4 text-white">Contact</h4>
+                <ul className="space-y-3 text-[#a8d4c0]">
+                  <li className="flex items-start gap-2">
+                    <span>📍</span>
+                    <span>24 Tony Anenih Avenue, G.R.A, Benin City</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span>⏰</span>
+                    <span>Pickup: 10 AM - 6 PM</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span>📞</span>
+                    <span>Call or WhatsApp us</span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Order CTA */}
+              <div>
+                <h4 className="text-lg font-semibold mb-4 text-white">Get Fresh Palm Wine</h4>
+                <p className="text-[#a8d4c0] mb-4">
+                  Order now and enjoy fresh, natural palm wine delivered to your doorstep.
+                </p>
+                <Link 
+                  href="/order"
+                  className="inline-block bg-white text-[#2d5a4a] px-6 py-3 rounded-full font-semibold hover:bg-[#f0f7f4] transition-all duration-300"
+                >
+                  Order Now →
+                </Link>
+              </div>
             </div>
-            <div className="border-t border-gray-700 mt-8 pt-8 text-center text-gray-300">
-              <p>&copy; {new Date().getFullYear()} Upwine. All rights reserved.</p>
+
+            {/* Bottom bar */}
+            <div className="border-t border-[#2d5a4a] mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
+              <p className="text-[#a8d4c0] text-sm">
+                © {new Date().getFullYear()} Upwyne. All rights reserved.
+              </p>
+              <p className="text-[#7ab39e] text-sm">
+                Made with 🌴 in Benin City, Nigeria
+              </p>
             </div>
           </div>
         </footer>
@@ -79,4 +151,3 @@ export default function RootLayout({
     </html>
   )
 }
-
