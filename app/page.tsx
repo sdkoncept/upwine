@@ -49,7 +49,7 @@ export default function Home() {
                 bottles available this week
               </div>
               <div className="text-2xl font-semibold text-gray-800 mb-2">
-                ₦1,200
+                ₦2,000
               </div>
               <div className="text-gray-600">
                 per 1 liter bottle
