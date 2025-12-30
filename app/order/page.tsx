@@ -17,7 +17,7 @@ export default function OrderPage() {
       .catch(err => console.error('Error fetching stock:', err))
   }, [])
 
-  const pricePerBottle = 1200
+  const pricePerBottle = 2000
   const subtotal = quantity * pricePerBottle
   const estimatedDeliveryFee = deliveryType === 'delivery' ? 1000 : 0 // Estimated for display
   const total = subtotal + estimatedDeliveryFee

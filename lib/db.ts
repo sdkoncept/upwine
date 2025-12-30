@@ -55,7 +55,7 @@ export function initDatabase() {
   const settings = db.prepare('SELECT COUNT(*) as count FROM settings').get() as { count: number };
   if (settings.count === 0) {
     const insertSettings = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)');
-    insertSettings.run('price_per_bottle', '1200');
+    insertSettings.run('price_per_bottle', '2000');
     insertSettings.run('weekly_stock', '100');
     insertSettings.run('pickup_address', '24 Tony Anenih Avenue, G.R.A, Benin City');
     insertSettings.run('delivery_fee_min', '800');
@@ -120,7 +120,7 @@ export function createOrder(orderData: {
     throw new Error('Insufficient stock');
   }
 
-  const pricePerBottle = parseInt(getSetting('price_per_bottle') || '1200');
+  const pricePerBottle = parseInt(getSetting('price_per_bottle') || '2000');
   const totalAmount = (orderData.quantity * pricePerBottle) + orderData.delivery_fee;
 
   // Generate order number

@@ -21,7 +21,7 @@ function CheckoutContent() {
   const quantity = parseInt(searchParams.get('quantity') || '1')
   const deliveryType = (searchParams.get('type') || 'pickup') as 'pickup' | 'delivery'
 
-  const pricePerBottle = 1200
+  const pricePerBottle = 2000
   const subtotal = quantity * pricePerBottle
   const total = subtotal + deliveryFee
 

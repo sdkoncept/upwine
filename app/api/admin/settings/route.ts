@@ -31,7 +31,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       admin_phone: getSetting('admin_phone') || '',
       admin_email: getSetting('admin_email') || '',
-      price_per_bottle: getSetting('price_per_bottle') || '1200',
+      price_per_bottle: getSetting('price_per_bottle') || '2000',
       pickup_address: getSetting('pickup_address') || '',
     })
   } catch (error: any) {
