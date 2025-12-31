@@ -12,12 +12,6 @@ export async function sendWhatsAppMessage(phone: string, message: string) {
   // Check which WhatsApp service is configured
   const whatsappService = process.env.WHATSAPP_SERVICE || 'none';
   console.log('[WhatsApp] Service configured:', whatsappService);
-  console.log('[WhatsApp] Environment check:', {
-    WHATSAPP_SERVICE: process.env.WHATSAPP_SERVICE,
-    TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID ? 'SET' : 'NOT SET',
-    TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN ? 'SET' : 'NOT SET',
-    TWILIO_WHATSAPP_FROM: process.env.TWILIO_WHATSAPP_FROM || 'NOT SET'
-  });
   
   try {
     switch (whatsappService.toLowerCase()) {
@@ -42,18 +36,12 @@ export async function sendWhatsAppMessage(phone: string, message: string) {
   }
 }
 
-// Twilio WhatsApp API integration
+// Twilio WhatsApp API integration (optional - only works if twilio is installed)
 async function sendViaTwilio(phone: string, message: string) {
   console.log('[WhatsApp/Twilio] Starting Twilio send...');
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   const fromNumber = process.env.TWILIO_WHATSAPP_FROM;
-
-  console.log('[WhatsApp/Twilio] Credentials check:', {
-    accountSid: accountSid ? `${accountSid.substring(0, 10)}...` : 'MISSING',
-    authToken: authToken ? 'SET' : 'MISSING',
-    fromNumber: fromNumber || 'MISSING'
-  });
 
   if (!accountSid || !authToken || !fromNumber) {
     console.error('[WhatsApp/Twilio] Twilio credentials not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_WHATSAPP_FROM');
@@ -61,29 +49,34 @@ async function sendViaTwilio(phone: string, message: string) {
   }
 
   try {
-    console.log('[WhatsApp/Twilio] Importing Twilio library...');
-    // Dynamic import to avoid requiring twilio if not used
-    const twilio = await import('twilio');
-    const client = twilio.default(accountSid, authToken);
+    // Use fetch to call Twilio API directly instead of the SDK
+    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+    const auth = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
+    
+    const formData = new URLSearchParams();
+    formData.append('From', `whatsapp:${fromNumber}`);
+    formData.append('To', `whatsapp:+${phone}`);
+    formData.append('Body', message);
 
-    console.log('[WhatsApp/Twilio] Creating message:', {
-      from: `whatsapp:${fromNumber}`,
-      to: `whatsapp:+${phone}`,
-      messageLength: message.length
+    const response = await fetch(twilioUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${auth}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: formData.toString()
     });
 
-    const result = await client.messages.create({
-      from: `whatsapp:${fromNumber}`,
-      to: `whatsapp:+${phone}`,
-      body: message
-    });
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Twilio API error: ${error}`);
+    }
 
+    const result = await response.json();
     console.log(`[WhatsApp/Twilio] ✅ Message sent successfully! SID: ${result.sid}`);
-    console.log(`[WhatsApp/Twilio] Message sent via Twilio to +${phone}`);
   } catch (error: any) {
     console.error('[WhatsApp/Twilio] ❌ Error sending message:', error.message);
-    console.error('[WhatsApp/Twilio] Full error:', error);
-    throw error; // Re-throw so it's caught by outer try-catch
+    // Don't throw - allow graceful failure
   }
 }
 
@@ -206,4 +199,3 @@ export function formatAdminNotification(order: {
   
   return message;
 }
-
