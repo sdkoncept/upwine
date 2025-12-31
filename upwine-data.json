@@ -1,11 +1,44 @@
 {
-  "orders": [],
+  "orders": [
+    {
+      "id": 1,
+      "order_number": "UPW78938575",
+      "customer_name": "akin",
+      "phone": "07061350467",
+      "email": "akin.anenih@sdkoncept.com",
+      "quantity": 2,
+      "delivery_type": "pickup",
+      "delivery_fee": 0,
+      "total_amount": 4000,
+      "payment_method": "online",
+      "payment_status": "pending",
+      "status": "pending",
+      "created_at": "2025-12-31T11:02:18.575Z",
+      "updated_at": "2025-12-31T11:02:18.575Z"
+    },
+    {
+      "id": 2,
+      "order_number": "UPW78945878",
+      "customer_name": "akin",
+      "phone": "07061350467",
+      "email": "akin.anenih@sdkoncept.com",
+      "quantity": 2,
+      "delivery_type": "pickup",
+      "delivery_fee": 0,
+      "total_amount": 4000,
+      "payment_method": "online",
+      "payment_status": "pending",
+      "status": "pending",
+      "created_at": "2025-12-31T11:02:25.878Z",
+      "updated_at": "2025-12-31T11:02:25.878Z"
+    }
+  ],
   "stock": [
     {
       "week_start_date": "2025-12-29",
       "total_bottles": 100,
-      "sold_bottles": 0,
-      "available_bottles": 100
+      "sold_bottles": 4,
+      "available_bottles": 96
     }
   ],
   "settings": {
@@ -17,5 +50,5 @@
     "admin_phone": "",
     "admin_email": ""
   },
-  "nextOrderId": 1
+  "nextOrderId": 3
 }

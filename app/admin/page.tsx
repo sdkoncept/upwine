@@ -82,6 +82,12 @@ export default function AdminPage() {
   const [showOrderDetails, setShowOrderDetails] = useState(false)
   const [statusFilter, setStatusFilter] = useState<string>('all')
   
+  // Order Lookup State
+  const [searchOrderNumber, setSearchOrderNumber] = useState('')
+  const [lookupOrder, setLookupOrder] = useState<Order | null>(null)
+  const [lookupError, setLookupError] = useState('')
+  const [isSearching, setIsSearching] = useState(false)
+  
   // Sales Dashboard State
   const [stats, setStats] = useState<SalesStats>({
     total_orders: 0,
@@ -392,6 +398,56 @@ export default function AdminPage() {
     window.open(whatsappUrl, '_blank')
   }
 
+  // Order Lookup Functions
+  const searchOrder = () => {
+    if (!searchOrderNumber.trim()) {
+      setLookupError('Please enter an order number')
+      return
+    }
+
+    setIsSearching(true)
+    setLookupError('')
+    setLookupOrder(null)
+
+    const orderNum = searchOrderNumber.trim().toUpperCase()
+    const found = orders.find(o => o.order_number === orderNum)
+
+    if (found) {
+      setLookupOrder(found)
+      setLookupError('')
+    } else {
+      setLookupError(`Order ${orderNum} not found. Please check the order number.`)
+    }
+    setIsSearching(false)
+  }
+
+  const clearLookup = () => {
+    setSearchOrderNumber('')
+    setLookupOrder(null)
+    setLookupError('')
+  }
+
+  const handleLookupKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      searchOrder()
+    }
+  }
+
+  const markLookupOrderAsPickedUp = async () => {
+    if (!lookupOrder) return
+    
+    // If COD and not paid, mark as paid first
+    if (lookupOrder.payment_method === 'cod' && lookupOrder.payment_status !== 'paid') {
+      await updatePaymentStatus(lookupOrder.id, 'paid')
+    }
+    
+    await updateOrderStatus(lookupOrder.id, 'delivered')
+    
+    // Update the lookup order state
+    setLookupOrder({ ...lookupOrder, status: 'delivered', payment_status: 'paid' })
+    alert(`Order ${lookupOrder.order_number} marked as picked up!`)
+  }
+
   const handleLogout = async () => {
     try {
       await fetch('/api/admin/auth', { method: 'DELETE' })
@@ -644,6 +700,189 @@ export default function AdminPage() {
         {/* Orders Tab */}
         {activeTab === 'orders' && (
           <div className="space-y-6">
+            {/* Order Lookup - For Pickup Customers */}
+            <div className="bg-gradient-to-r from-[#2d5a4a] to-[#3d6a5a] rounded-xl shadow-lg p-6 text-white">
+              <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+                <span>🔍</span> Quick Order Lookup
+              </h3>
+              <p className="text-sm text-[#a8d4c0] mb-4">
+                Enter order number when customer arrives for pickup
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <input
+                  type="text"
+                  value={searchOrderNumber}
+                  onChange={(e) => setSearchOrderNumber(e.target.value.toUpperCase())}
+                  onKeyPress={handleLookupKeyPress}
+                  placeholder="Enter order number (e.g., UPW12345678)"
+                  className="flex-1 border-2 border-white/20 bg-white/10 rounded-lg py-3 px-4 text-white placeholder-white/50 focus:border-white focus:outline-none font-mono"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={searchOrder}
+                    disabled={isSearching}
+                    className="bg-white text-[#2d5a4a] px-6 py-3 rounded-lg font-semibold hover:bg-[#f0f7f4] transition disabled:opacity-50"
+                  >
+                    {isSearching ? 'Searching...' : 'Find Order'}
+                  </button>
+                  {(lookupOrder || lookupError) && (
+                    <button
+                      onClick={clearLookup}
+                      className="bg-white/20 text-white px-4 py-3 rounded-lg font-semibold hover:bg-white/30 transition"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Lookup Error */}
+              {lookupError && (
+                <div className="mt-4 bg-red-500/20 border border-red-400/50 rounded-lg p-4 text-white">
+                  <p className="flex items-center gap-2">
+                    <span>❌</span> {lookupError}
+                  </p>
+                </div>
+              )}
+
+              {/* Lookup Result */}
+              {lookupOrder && (
+                <div className="mt-4 bg-white rounded-xl p-5 text-gray-800">
+                  <div className="flex flex-col md:flex-row justify-between items-start gap-4">
+                    {/* Order Info */}
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-3">
+                        <span className="text-2xl">
+                          {lookupOrder.delivery_type === 'pickup' ? '📍' : '🚚'}
+                        </span>
+                        <div>
+                          <h4 className="text-xl font-bold text-[#2d5a4a]">{lookupOrder.order_number}</h4>
+                          <p className="text-sm text-gray-500">
+                            {lookupOrder.delivery_type === 'pickup' ? 'Pickup Order' : 'Delivery Order'}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <span className="text-gray-500">Customer:</span>
+                          <p className="font-semibold">{lookupOrder.customer_name}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Phone:</span>
+                          <p className="font-semibold">
+                            <a href={`tel:${lookupOrder.phone}`} className="text-blue-600 hover:underline">
+                              {lookupOrder.phone}
+                            </a>
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Quantity:</span>
+                          <p className="font-semibold">{lookupOrder.quantity} bottle(s)</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Order Status:</span>
+                          <p>
+                            <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium capitalize ${
+                              lookupOrder.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                              lookupOrder.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
+                              lookupOrder.status === 'completed' ? 'bg-indigo-100 text-indigo-800' :
+                              lookupOrder.status === 'delivered' ? 'bg-green-100 text-green-800' :
+                              'bg-red-100 text-red-800'
+                            }`}>
+                              {lookupOrder.status}
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Payment Box */}
+                    <div className={`w-full md:w-64 rounded-xl p-4 ${
+                      lookupOrder.payment_status === 'paid' 
+                        ? 'bg-green-50 border-2 border-green-200' 
+                        : 'bg-amber-50 border-2 border-amber-200'
+                    }`}>
+                      <div className="text-center">
+                        <p className="text-sm text-gray-600 mb-1">Total Amount</p>
+                        <p className="text-3xl font-bold text-[#2d5a4a]">
+                          ₦{lookupOrder.total_amount.toLocaleString()}
+                        </p>
+                        <div className="mt-3">
+                          <p className="text-xs text-gray-500 mb-1">
+                            {lookupOrder.payment_method === 'cod' ? '💵 Cash on Delivery' : '💳 Online Payment'}
+                          </p>
+                          {lookupOrder.payment_status === 'paid' ? (
+                            <span className="inline-flex items-center gap-1 bg-green-500 text-white px-3 py-1 rounded-full text-sm font-semibold">
+                              ✓ PAID
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 bg-amber-500 text-white px-3 py-1 rounded-full text-sm font-semibold">
+                              ⏳ PENDING
+                            </span>
+                          )}
+                        </div>
+                        {lookupOrder.payment_status !== 'paid' && (
+                          <p className="mt-2 text-sm font-medium text-amber-700">
+                            Collect ₦{lookupOrder.total_amount.toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="mt-4 pt-4 border-t border-gray-200 flex flex-wrap gap-3">
+                    {lookupOrder.status !== 'delivered' && lookupOrder.status !== 'cancelled' && (
+                      <button
+                        onClick={markLookupOrderAsPickedUp}
+                        className="flex-1 sm:flex-none bg-green-600 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-green-700 transition flex items-center justify-center gap-2"
+                      >
+                        <span>✓</span> 
+                        {lookupOrder.payment_status !== 'paid' ? 'Collect Payment & Complete' : 'Mark as Picked Up'}
+                      </button>
+                    )}
+                    {lookupOrder.payment_method === 'cod' && lookupOrder.payment_status !== 'paid' && lookupOrder.status !== 'delivered' && (
+                      <button
+                        onClick={() => {
+                          updatePaymentStatus(lookupOrder.id, 'paid')
+                          setLookupOrder({ ...lookupOrder, payment_status: 'paid' })
+                        }}
+                        className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-blue-700 transition flex items-center gap-2"
+                      >
+                        💵 Mark as Paid
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        setSelectedOrder(lookupOrder)
+                        setShowOrderDetails(true)
+                      }}
+                      className="bg-gray-100 text-gray-700 px-6 py-2.5 rounded-lg font-semibold hover:bg-gray-200 transition flex items-center gap-2"
+                    >
+                      👁️ Full Details
+                    </button>
+                    <Link
+                      href={`/invoice/${lookupOrder.order_number}`}
+                      target="_blank"
+                      className="bg-[#2d5a4a] text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-[#1e4035] transition flex items-center gap-2"
+                    >
+                      📄 Invoice
+                    </Link>
+                  </div>
+
+                  {/* Already Delivered Notice */}
+                  {lookupOrder.status === 'delivered' && (
+                    <div className="mt-4 bg-green-100 border border-green-300 rounded-lg p-3 text-center">
+                      <p className="text-green-800 font-medium">
+                        ✅ This order has already been delivered/picked up
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Order Filters */}
             <div className="bg-white rounded-xl shadow-md p-4">
               <div className="flex flex-wrap gap-2">
