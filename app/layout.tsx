@@ -1,11 +1,12 @@
 import type { Metadata } from 'next'
-import { DM_Sans } from 'next/font/google'
+import { Outfit } from 'next/font/google'
 import './globals.css'
 import Link from 'next/link'
+import MobileNav from './components/MobileNav'
 
-const dmSans = DM_Sans({ 
+const outfit = Outfit({ 
   subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
+  weight: ['300', '400', '500', '600', '700', '800'],
 })
 
 export const metadata: Metadata = {
@@ -20,13 +21,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={dmSans.className}>
+      <body className={outfit.className}>
         {/* Navigation */}
         <nav className="bg-white/95 backdrop-blur-md shadow-sm sticky top-0 z-50 border-b border-[#e8f0ec]">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-18 py-4">
-              <Link href="/" className="text-2xl font-bold text-[#2d5a4a] tracking-tight">
-                Upwyne
+              <Link href="/" className="text-2xl font-bold text-[#2d5a4a] tracking-tight flex items-center gap-2">
+                <span className="text-3xl">🌴</span>
+                <span>Upwyne</span>
               </Link>
               <div className="hidden md:flex items-center space-x-8">
                 <Link href="/" className="text-[#5a8a7a] hover:text-[#2d5a4a] transition-colors font-medium">
@@ -34,6 +36,9 @@ export default function RootLayout({
                 </Link>
                 <Link href="/order" className="text-[#5a8a7a] hover:text-[#2d5a4a] transition-colors font-medium">
                   Order
+                </Link>
+                <Link href="/track" className="text-[#5a8a7a] hover:text-[#2d5a4a] transition-colors font-medium">
+                  Track Order
                 </Link>
                 <Link href="/about" className="text-[#5a8a7a] hover:text-[#2d5a4a] transition-colors font-medium">
                   About
@@ -48,15 +53,8 @@ export default function RootLayout({
                   Order Now
                 </Link>
               </div>
-              {/* Mobile menu button */}
-              <div className="md:hidden">
-                <Link 
-                  href="/order" 
-                  className="bg-[#2d5a4a] text-white px-5 py-2 rounded-full font-semibold text-sm"
-                >
-                  Order
-                </Link>
-              </div>
+              {/* Mobile menu */}
+              <MobileNav />
             </div>
           </div>
         </nav>
@@ -69,7 +67,9 @@ export default function RootLayout({
             <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
               {/* Brand */}
               <div className="md:col-span-1">
-                <h3 className="text-2xl font-bold mb-4">Upwyne</h3>
+                <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                  <span>🌴</span> Upwyne
+                </h3>
                 <p className="text-[#a8d4c0] leading-relaxed">
                   Premium palm wine selection. Delightful and fruity, crafted from the heart of Edo State.
                 </p>
@@ -87,6 +87,11 @@ export default function RootLayout({
                   <li>
                     <Link href="/order" className="text-[#a8d4c0] hover:text-white transition-colors">
                       Order Now
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/track" className="text-[#a8d4c0] hover:text-white transition-colors">
+                      Track Order
                     </Link>
                   </li>
                   <li>

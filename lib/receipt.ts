@@ -45,7 +45,7 @@ export function generateReceiptText(order: ReceiptData): string {
   receipt += `Order Details:\n`
   receipt += `Product: Fresh Natural Palm Wine (1L)\n`
   receipt += `Quantity: ${order.quantity} bottle(s)\n`
-  receipt += `Price per bottle: ₦1,200\n`
+  receipt += `Price per bottle: ₦2,000\n`
   
   const subtotal = order.total_amount - order.delivery_fee
   receipt += `Subtotal: ₦${subtotal.toLocaleString()}\n`
@@ -147,7 +147,7 @@ export function generateReceiptHTML(order: ReceiptData): string {
         <h3>Order Details</h3>
         <p><strong>Product:</strong> Fresh Natural Palm Wine (1L)</p>
         <p><strong>Quantity:</strong> ${order.quantity} bottle(s)</p>
-        <p><strong>Price per bottle:</strong> ₦1,200</p>
+        <p><strong>Price per bottle:</strong> ₦2,000</p>
         <p><strong>Subtotal:</strong> ₦${subtotal.toLocaleString()}</p>
         ${order.delivery_fee > 0 ? `<p><strong>Delivery Fee:</strong> ₦${order.delivery_fee.toLocaleString()}</p>` : ''}
         <p class="total">Total: ₦${order.total_amount.toLocaleString()}</p>

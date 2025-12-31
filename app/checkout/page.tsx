@@ -9,6 +9,8 @@ function CheckoutContent() {
   const searchParams = useSearchParams()
   const [loading, setLoading] = useState(false)
   const [deliveryFee, setDeliveryFee] = useState(0)
+  const [referralCode, setReferralCode] = useState('')
+  const [referralApplied, setReferralApplied] = useState(false)
   const [formData, setFormData] = useState({
     customer_name: '',
     phone: '',
@@ -23,7 +25,18 @@ function CheckoutContent() {
 
   const pricePerBottle = 2000
   const subtotal = quantity * pricePerBottle
-  const total = subtotal + deliveryFee
+  const discount = referralApplied ? Math.round(subtotal * 0.05) : 0 // 5% discount with referral
+  const total = subtotal + deliveryFee - discount
+
+  const applyReferralCode = () => {
+    // Simple referral code validation (in production, validate against database)
+    const validCodes = ['UPWYNE5', 'FRESH5', 'PALMWINE', 'FRIEND5']
+    if (validCodes.includes(referralCode.toUpperCase())) {
+      setReferralApplied(true)
+    } else if (referralCode.length > 0) {
+      alert('Invalid referral code')
+    }
+  }
 
   useEffect(() => {
     if (deliveryType === 'pickup') {
@@ -317,6 +330,44 @@ function CheckoutContent() {
                 )}
               </div>
 
+              {/* Referral Code Section */}
+              <div className="border-t border-gray-200 pt-4">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  🎁 Have a Referral Code?
+                </label>
+                {!referralApplied ? (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={referralCode}
+                      onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                      placeholder="Enter code"
+                      className="flex-1 border-2 border-gray-300 rounded py-2 px-4 focus:border-primary focus:outline-none font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={applyReferralCode}
+                      className="bg-primary text-white px-4 py-2 rounded font-semibold hover:bg-secondary transition"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                ) : (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-green-800">
+                        <strong>✓ Referral Applied!</strong>
+                        <p className="text-xs mt-1">5% discount has been applied to your order</p>
+                      </div>
+                      <span className="text-green-800 font-bold">-₦{discount.toLocaleString()}</span>
+                    </div>
+                  </div>
+                )}
+                <p className="text-xs text-gray-500 mt-1">
+                  Get a referral code from a friend or use: FRESH5
+                </p>
+              </div>
+
               <button
                 type="submit"
                 disabled={loading}
@@ -365,6 +416,12 @@ function CheckoutContent() {
                   <span className="font-semibold">₦{deliveryFee.toLocaleString()}</span>
                 </div>
               )}
+              {discount > 0 && (
+                <div className="flex justify-between text-green-600">
+                  <span>Referral Discount (5%):</span>
+                  <span className="font-semibold">-₦{discount.toLocaleString()}</span>
+                </div>
+              )}
             </div>
 
             <div className="border-t border-gray-300 pt-4">
@@ -372,6 +429,18 @@ function CheckoutContent() {
                 <span className="text-lg font-semibold">Total:</span>
                 <span className="text-2xl font-bold text-primary">₦{total.toLocaleString()}</span>
               </div>
+            </div>
+            
+            {/* Rewards Info */}
+            <div className="mt-4 bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xl">🏆</span>
+                <span className="font-semibold text-amber-800">Earn Rewards!</span>
+              </div>
+              <p className="text-xs text-amber-700">
+                After your order, you'll receive a referral code to share with friends. 
+                They get 5% off, and you earn rewards on their purchases!
+              </p>
             </div>
 
             <div className={`mt-6 border rounded-lg p-4 ${

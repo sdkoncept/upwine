@@ -150,16 +150,22 @@ function OrderConfirmationContent() {
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center flex-wrap">
+            <Link
+              href={`/invoice/${order.order_number}`}
+              className="bg-primary text-white px-8 py-3 rounded-lg font-semibold hover:bg-secondary transition flex items-center justify-center gap-2"
+            >
+              <span>📄</span> View Invoice
+            </Link>
             <Link
               href="/"
-              className="bg-primary text-white px-8 py-3 rounded-lg font-semibold hover:bg-secondary transition"
+              className="bg-gray-200 text-gray-800 px-8 py-3 rounded-lg font-semibold hover:bg-gray-300 transition"
             >
               Return to Home
             </Link>
             <Link
               href="/order"
-              className="bg-gray-200 text-gray-800 px-8 py-3 rounded-lg font-semibold hover:bg-gray-300 transition"
+              className="bg-white text-primary border-2 border-primary px-8 py-3 rounded-lg font-semibold hover:bg-green-50 transition"
             >
               Place Another Order
             </Link>

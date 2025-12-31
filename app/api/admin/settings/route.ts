@@ -1,87 +1,56 @@
 import { NextResponse } from 'next/server'
 import { getSetting, updateSetting } from '@/lib/db'
-import { cookies } from 'next/headers'
 
 export const dynamic = 'force-dynamic'
 
-// Check if user is authenticated
-async function checkAuth() {
-  const cookieStore = await cookies()
-  const authCookie = cookieStore.get('admin_auth')
-  return authCookie?.value === 'authenticated'
-}
-
-// GET - Retrieve settings
-export async function GET(request: Request) {
+export async function GET() {
   try {
-    const authenticated = await checkAuth()
-    if (!authenticated) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { searchParams } = new URL(request.url)
-    const key = searchParams.get('key')
-
-    if (key) {
-      const value = getSetting(key)
-      return NextResponse.json({ key, value })
-    }
-
-    // Return all settings (you can filter sensitive ones)
-    return NextResponse.json({
+    const settings = {
+      price_per_bottle: getSetting('price_per_bottle') || '2000',
+      weekly_stock: getSetting('weekly_stock') || '100',
+      pickup_address: getSetting('pickup_address') || '24 Tony Anenih Avenue, G.R.A, Benin City',
+      delivery_fee_min: getSetting('delivery_fee_min') || '800',
+      delivery_fee_max: getSetting('delivery_fee_max') || '2200',
       admin_phone: getSetting('admin_phone') || '',
       admin_email: getSetting('admin_email') || '',
-      price_per_bottle: getSetting('price_per_bottle') || '2000',
-      pickup_address: getSetting('pickup_address') || '',
-    })
-  } catch (error: any) {
+    }
+
+    return NextResponse.json(settings)
+  } catch (error) {
     console.error('Error fetching settings:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch settings' },
+      { error: 'Failed to fetch settings' },
       { status: 500 }
     )
   }
 }
 
-// PATCH - Update a setting
-export async function PATCH(request: Request) {
+export async function POST(request: Request) {
   try {
-    const authenticated = await checkAuth()
-    if (!authenticated) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const body = await request.json()
-    const { key, value } = body
+    
+    const allowedKeys = [
+      'price_per_bottle',
+      'weekly_stock',
+      'pickup_address',
+      'delivery_fee_min',
+      'delivery_fee_max',
+      'admin_phone',
+      'admin_email',
+    ]
 
-    if (!key || value === undefined) {
-      return NextResponse.json(
-        { error: 'Key and value are required' },
-        { status: 400 }
-      )
-    }
-
-    // Validate admin_phone format if updating phone
-    if (key === 'admin_phone' && value) {
-      const cleanPhone = value.replace(/\D/g, '')
-      if (!cleanPhone.startsWith('234') || cleanPhone.length < 12 || cleanPhone.length > 13) {
-        return NextResponse.json(
-          { error: 'Invalid phone format. Expected: 234XXXXXXXXXX' },
-          { status: 400 }
-        )
+    for (const key of allowedKeys) {
+      if (body[key] !== undefined) {
+        updateSetting(key, body[key])
       }
-      updateSetting(key, cleanPhone)
-    } else {
-      updateSetting(key, value.toString())
     }
 
-    return NextResponse.json({ success: true, key, value: getSetting(key) })
-  } catch (error: any) {
-    console.error('Error updating setting:', error)
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Error updating settings:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to update setting' },
+      { error: 'Failed to update settings' },
       { status: 500 }
     )
   }
 }
-

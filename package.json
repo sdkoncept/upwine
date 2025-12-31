@@ -6,19 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "railway": "railway"
+    "lint": "next lint"
   },
   "dependencies": {
-    "better-sqlite3": "^9.0.0",
     "next": "^14.2.35",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "twilio": "^5.10.6"
+    "react-dom": "^18.2.0"
   },
   "devDependencies": {
-    "@railway/cli": "^4.12.0",
-    "@types/better-sqlite3": "^7.6.0",
     "@types/node": "^20.0.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
