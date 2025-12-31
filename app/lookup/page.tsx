@@ -14,31 +14,57 @@ export default function LookupPage() {
     e.preventDefault()
     
     if (!orderNumber.trim()) {
-      setError('Please enter an order number')
+      setError('Please enter an order or invoice number')
       return
     }
 
     setLoading(true)
     setError('')
 
-    try {
-      const response = await fetch(`/api/orders/${orderNumber.trim().toUpperCase()}`)
-      
-      if (!response.ok) {
-        throw new Error('Order not found')
+    const number = orderNumber.trim().toUpperCase()
+    
+    // Check if it's an invoice number (starts with INV)
+    if (number.startsWith('INV')) {
+      try {
+        const response = await fetch(`/api/invoices/${number}`)
+        
+        if (!response.ok) {
+          throw new Error('Invoice not found')
+        }
+
+        const data = await response.json()
+
+        if (data.error) {
+          throw new Error(data.error)
+        }
+
+        // Redirect to invoice page
+        router.push(`/view-invoice/${number}`)
+      } catch (err: any) {
+        setError(err.message || 'Invoice not found. Please check your invoice number.')
+        setLoading(false)
       }
+    } else {
+      // It's an order number (starts with UPW)
+      try {
+        const response = await fetch(`/api/orders/${number}`)
+        
+        if (!response.ok) {
+          throw new Error('Order not found')
+        }
 
-      const data = await response.json()
+        const data = await response.json()
 
-      if (data.error) {
-        throw new Error(data.error)
+        if (data.error) {
+          throw new Error(data.error)
+        }
+
+        // Redirect to order invoice page
+        router.push(`/invoice/${number}`)
+      } catch (err: any) {
+        setError(err.message || 'Order not found. Please check your order number.')
+        setLoading(false)
       }
-
-      // Redirect to invoice page
-      router.push(`/invoice/${orderNumber.trim().toUpperCase()}`)
-    } catch (err: any) {
-      setError(err.message || 'Order not found. Please check your order number.')
-      setLoading(false)
     }
   }
 
@@ -52,7 +78,7 @@ export default function LookupPage() {
             Invoice & Receipt
           </h1>
           <p className="text-[#5a8a7a] text-lg">
-            Enter your order number to view and download your invoice or receipt
+            Enter your order or invoice number to view and download your document
           </p>
         </div>
 
@@ -61,7 +87,7 @@ export default function LookupPage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label className="block text-sm font-semibold text-[#2d5a4a] mb-2">
-                Order Number <span className="text-red-500">*</span>
+                Order or Invoice Number <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -70,9 +96,12 @@ export default function LookupPage() {
                   setOrderNumber(e.target.value.toUpperCase())
                   setError('')
                 }}
-                placeholder="e.g., UPW12345678"
+                placeholder="e.g., UPW12345678 or INV12345678"
                 className="w-full border-2 border-[#e8f0ec] rounded-xl py-4 px-4 text-lg font-mono focus:border-[#2d5a4a] focus:outline-none transition text-center"
               />
+              <p className="text-xs text-gray-500 mt-2 text-center">
+                Order numbers start with UPW, Invoice numbers start with INV
+              </p>
             </div>
 
             {error && (
@@ -125,12 +154,12 @@ export default function LookupPage() {
         {/* Help Section */}
         <div className="mt-8 bg-[#fff8e6] rounded-2xl p-6 border border-[#ffeeba]">
           <h3 className="font-semibold text-[#856404] mb-2 flex items-center gap-2">
-            <span>💡</span> Where can I find my order number?
+            <span>💡</span> Where can I find my number?
           </h3>
           <ul className="text-[#856404] text-sm space-y-1">
-            <li>• On the order confirmation page after placing your order</li>
-            <li>• In the WhatsApp message we sent you</li>
-            <li>• In your email receipt (if you provided an email)</li>
+            <li>• <strong>Order number (UPW...):</strong> On confirmation page or WhatsApp message</li>
+            <li>• <strong>Invoice number (INV...):</strong> Sent to you by our sales team</li>
+            <li>• Check your email or WhatsApp messages for the number</li>
           </ul>
         </div>
       </div>

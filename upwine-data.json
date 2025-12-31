@@ -1,0 +1,21 @@
+{
+  "orders": [],
+  "stock": [
+    {
+      "week_start_date": "2025-12-29",
+      "total_bottles": 100,
+      "sold_bottles": 0,
+      "available_bottles": 100
+    }
+  ],
+  "settings": {
+    "price_per_bottle": "2000",
+    "weekly_stock": "100",
+    "pickup_address": "24 Tony Anenih Avenue, G.R.A, Benin City",
+    "delivery_fee_min": "800",
+    "delivery_fee_max": "2200",
+    "admin_phone": "",
+    "admin_email": ""
+  },
+  "nextOrderId": 1
+}

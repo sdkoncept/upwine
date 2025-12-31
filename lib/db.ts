@@ -31,17 +31,39 @@ interface Stock {
   available_bottles: number;
 }
 
+interface Invoice {
+  id: number;
+  invoice_number: string;
+  customer_name: string;
+  phone: string;
+  email?: string;
+  address?: string;
+  quantity: number;
+  price_per_bottle: number;
+  delivery_fee: number;
+  discount: number;
+  total_amount: number;
+  notes?: string;
+  status: 'draft' | 'sent' | 'paid' | 'cancelled';
+  due_date?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 interface Database {
   orders: Order[];
   stock: Stock[];
+  invoices: Invoice[];
   settings: Record<string, string>;
   nextOrderId: number;
+  nextInvoiceId: number;
 }
 
 function getDefaultDatabase(): Database {
   return {
     orders: [],
     stock: [],
+    invoices: [],
     settings: {
       price_per_bottle: '2000',
       weekly_stock: '100',
@@ -52,6 +74,7 @@ function getDefaultDatabase(): Database {
       admin_email: '',
     },
     nextOrderId: 1,
+    nextInvoiceId: 1,
   };
 }
 
@@ -364,6 +387,130 @@ export function getOrdersForExport(startDate?: string, endDate?: string) {
 export function migrateDatabase() {
   // JSON storage doesn't need migrations
   console.log('JSON database - no migration needed');
+}
+
+// ============ INVOICE FUNCTIONS ============
+
+export function createInvoice(invoiceData: {
+  customer_name: string;
+  phone: string;
+  email?: string;
+  address?: string;
+  quantity: number;
+  price_per_bottle?: number;
+  delivery_fee?: number;
+  discount?: number;
+  notes?: string;
+  due_date?: string;
+}) {
+  const db = loadDatabase();
+  
+  // Ensure invoices array exists
+  if (!db.invoices) {
+    db.invoices = [];
+  }
+  if (!db.nextInvoiceId) {
+    db.nextInvoiceId = 1;
+  }
+  
+  const pricePerBottle = invoiceData.price_per_bottle || parseInt(getSetting('price_per_bottle') || '2000');
+  const deliveryFee = invoiceData.delivery_fee || 0;
+  const discount = invoiceData.discount || 0;
+  const subtotal = invoiceData.quantity * pricePerBottle;
+  const totalAmount = subtotal + deliveryFee - discount;
+
+  const invoiceNumber = `INV${Date.now().toString().slice(-8)}`;
+  const now = new Date().toISOString();
+
+  const newInvoice: Invoice = {
+    id: db.nextInvoiceId++,
+    invoice_number: invoiceNumber,
+    customer_name: invoiceData.customer_name,
+    phone: invoiceData.phone,
+    email: invoiceData.email,
+    address: invoiceData.address,
+    quantity: invoiceData.quantity,
+    price_per_bottle: pricePerBottle,
+    delivery_fee: deliveryFee,
+    discount: discount,
+    total_amount: totalAmount,
+    notes: invoiceData.notes,
+    status: 'draft',
+    due_date: invoiceData.due_date,
+    created_at: now,
+    updated_at: now,
+  };
+
+  db.invoices.push(newInvoice);
+  saveDatabase(db);
+  
+  return newInvoice;
+}
+
+export function getInvoices(status?: string) {
+  const db = loadDatabase();
+  let invoices = db.invoices || [];
+  
+  if (status) {
+    invoices = invoices.filter(i => i.status === status);
+  }
+  
+  return invoices.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+}
+
+export function getInvoice(invoiceNumber: string) {
+  const db = loadDatabase();
+  return (db.invoices || []).find(i => i.invoice_number === invoiceNumber) || null;
+}
+
+export function getInvoiceById(id: number) {
+  const db = loadDatabase();
+  return (db.invoices || []).find(i => i.id === id) || null;
+}
+
+export function updateInvoiceStatus(invoiceId: number, status: 'draft' | 'sent' | 'paid' | 'cancelled') {
+  const db = loadDatabase();
+  const invoice = (db.invoices || []).find(i => i.id === invoiceId);
+  
+  if (invoice) {
+    invoice.status = status;
+    invoice.updated_at = new Date().toISOString();
+    saveDatabase(db);
+    return invoice;
+  }
+  return null;
+}
+
+export function updateInvoice(invoiceId: number, updates: Partial<Invoice>) {
+  const db = loadDatabase();
+  const invoice = (db.invoices || []).find(i => i.id === invoiceId);
+  
+  if (invoice) {
+    Object.assign(invoice, updates, { updated_at: new Date().toISOString() });
+    
+    // Recalculate total if quantity, price, delivery fee, or discount changed
+    if (updates.quantity !== undefined || updates.price_per_bottle !== undefined || 
+        updates.delivery_fee !== undefined || updates.discount !== undefined) {
+      const subtotal = invoice.quantity * invoice.price_per_bottle;
+      invoice.total_amount = subtotal + invoice.delivery_fee - invoice.discount;
+    }
+    
+    saveDatabase(db);
+    return invoice;
+  }
+  return null;
+}
+
+export function deleteInvoice(invoiceId: number) {
+  const db = loadDatabase();
+  const index = (db.invoices || []).findIndex(i => i.id === invoiceId);
+  
+  if (index !== -1) {
+    db.invoices.splice(index, 1);
+    saveDatabase(db);
+    return true;
+  }
+  return false;
 }
 
 // Initialize database on import

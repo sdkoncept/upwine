@@ -51,6 +51,24 @@ interface Settings {
   admin_email: string
 }
 
+interface Invoice {
+  id: number
+  invoice_number: string
+  customer_name: string
+  phone: string
+  email?: string
+  address?: string
+  quantity: number
+  price_per_bottle: number
+  delivery_fee: number
+  discount: number
+  total_amount: number
+  notes?: string
+  status: 'draft' | 'sent' | 'paid' | 'cancelled'
+  due_date?: string
+  created_at: string
+}
+
 export default function AdminPage() {
   const router = useRouter()
   const [orders, setOrders] = useState<Order[]>([])
@@ -59,7 +77,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true)
   const [authenticated, setAuthenticated] = useState(false)
   const [checkingAuth, setCheckingAuth] = useState(true)
-  const [activeTab, setActiveTab] = useState<'orders' | 'stock' | 'sales' | 'settings'>('orders')
+  const [activeTab, setActiveTab] = useState<'orders' | 'stock' | 'sales' | 'invoices' | 'settings'>('orders')
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [showOrderDetails, setShowOrderDetails] = useState(false)
   const [statusFilter, setStatusFilter] = useState<string>('all')
@@ -90,6 +108,26 @@ export default function AdminPage() {
     admin_email: '',
   })
   const [savingSettings, setSavingSettings] = useState(false)
+  
+  // Invoice State
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [showCreateInvoice, setShowCreateInvoice] = useState(false)
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
+  const [showInvoiceDetails, setShowInvoiceDetails] = useState(false)
+  const [invoiceForm, setInvoiceForm] = useState({
+    customer_name: '',
+    phone: '',
+    email: '',
+    address: '',
+    quantity: 1,
+    price_per_bottle: 2000,
+    delivery_fee: 0,
+    discount: 0,
+    notes: '',
+    due_date: '',
+  })
+  const [creatingInvoice, setCreatingInvoice] = useState(false)
+  const [sendingInvoice, setSendingInvoice] = useState(false)
 
   useEffect(() => {
     checkAuth()
@@ -100,6 +138,12 @@ export default function AdminPage() {
       fetchSalesData()
     }
   }, [authenticated, activeTab, dateFilter, customStartDate, customEndDate, groupBy])
+
+  useEffect(() => {
+    if (authenticated && activeTab === 'invoices') {
+      fetchInvoices()
+    }
+  }, [authenticated, activeTab])
 
   const checkAuth = async () => {
     try {
@@ -211,6 +255,141 @@ export default function AdminPage() {
     } catch (error) {
       console.error('Error fetching sales data:', error)
     }
+  }
+
+  const fetchInvoices = async () => {
+    try {
+      const res = await fetch('/api/admin/invoices')
+      const data = await res.json()
+      setInvoices(data)
+    } catch (error) {
+      console.error('Error fetching invoices:', error)
+    }
+  }
+
+  const resetInvoiceForm = () => {
+    setInvoiceForm({
+      customer_name: '',
+      phone: '',
+      email: '',
+      address: '',
+      quantity: 1,
+      price_per_bottle: parseInt(settings.price_per_bottle) || 2000,
+      delivery_fee: 0,
+      discount: 0,
+      notes: '',
+      due_date: '',
+    })
+  }
+
+  const createNewInvoice = async () => {
+    if (!invoiceForm.customer_name.trim() || !invoiceForm.phone.trim()) {
+      alert('Please fill in customer name and phone number')
+      return
+    }
+    if (invoiceForm.quantity < 1) {
+      alert('Quantity must be at least 1')
+      return
+    }
+
+    setCreatingInvoice(true)
+    try {
+      const res = await fetch('/api/admin/invoices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(invoiceForm)
+      })
+      const data = await res.json()
+      
+      if (data.error) {
+        alert(data.error)
+      } else {
+        alert(`Invoice ${data.invoice.invoice_number} created successfully!`)
+        setShowCreateInvoice(false)
+        resetInvoiceForm()
+        fetchInvoices()
+      }
+    } catch (error) {
+      console.error('Error creating invoice:', error)
+      alert('Failed to create invoice')
+    } finally {
+      setCreatingInvoice(false)
+    }
+  }
+
+  const sendInvoice = async (invoiceId: number) => {
+    setSendingInvoice(true)
+    try {
+      const res = await fetch(`/api/admin/invoices/${invoiceId}/send`, {
+        method: 'POST',
+      })
+      const data = await res.json()
+      
+      if (data.error) {
+        alert(data.error)
+      } else if (data.warning) {
+        alert(data.warning)
+        fetchInvoices()
+      } else {
+        alert('Invoice sent successfully via WhatsApp!')
+        fetchInvoices()
+      }
+    } catch (error) {
+      console.error('Error sending invoice:', error)
+      alert('Failed to send invoice')
+    } finally {
+      setSendingInvoice(false)
+    }
+  }
+
+  const updateInvoiceStatus = async (invoiceId: number, status: string) => {
+    try {
+      await fetch(`/api/admin/invoices/${invoiceId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      })
+      fetchInvoices()
+      if (selectedInvoice?.id === invoiceId) {
+        setSelectedInvoice({ ...selectedInvoice, status: status as Invoice['status'] })
+      }
+    } catch (error) {
+      console.error('Error updating invoice status:', error)
+      alert('Failed to update invoice status')
+    }
+  }
+
+  const deleteInvoice = async (invoiceId: number) => {
+    if (!confirm('Are you sure you want to delete this invoice?')) return
+    
+    try {
+      await fetch(`/api/admin/invoices/${invoiceId}`, {
+        method: 'DELETE',
+      })
+      fetchInvoices()
+      setShowInvoiceDetails(false)
+    } catch (error) {
+      console.error('Error deleting invoice:', error)
+      alert('Failed to delete invoice')
+    }
+  }
+
+  const openInvoiceDetails = (invoice: Invoice) => {
+    setSelectedInvoice(invoice)
+    setShowInvoiceDetails(true)
+  }
+
+  const copyInvoiceLink = (invoiceNumber: string) => {
+    const url = `${window.location.origin}/view-invoice/${invoiceNumber}`
+    navigator.clipboard.writeText(url)
+    alert('Invoice link copied to clipboard!')
+  }
+
+  const shareViaWhatsApp = (invoice: Invoice) => {
+    const url = `${window.location.origin}/view-invoice/${invoice.invoice_number}`
+    const message = `Hello ${invoice.customer_name}! Here's your invoice from Upwyne for ${invoice.quantity} bottle(s) of palm wine. Total: ₦${invoice.total_amount.toLocaleString()}. View invoice: ${url}`
+    const whatsappUrl = `https://wa.me/${invoice.phone.replace(/^0/, '234')}?text=${encodeURIComponent(message)}`
+    window.open(whatsappUrl, '_blank')
   }
 
   const handleLogout = async () => {
@@ -434,6 +613,7 @@ export default function AdminPage() {
           <nav className="flex overflow-x-auto">
             {[
               { key: 'orders', label: 'Orders', icon: '📋', count: orders.length },
+              { key: 'invoices', label: 'Invoices', icon: '📄', count: invoices.length },
               { key: 'stock', label: 'Stock', icon: '🍷' },
               { key: 'sales', label: 'Sales Analytics', icon: '📊' },
               { key: 'settings', label: 'Settings', icon: '⚙️' },
@@ -577,6 +757,144 @@ export default function AdminPage() {
                 {filteredOrders.length === 0 && (
                   <div className="text-center py-12 text-gray-500">
                     No orders found
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Invoices Tab */}
+        {activeTab === 'invoices' && (
+          <div className="space-y-6">
+            {/* Header with Create Button */}
+            <div className="bg-white rounded-xl shadow-md p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-800">Manual Invoices</h2>
+                <p className="text-gray-500 text-sm">Create and send invoices to premium customers</p>
+              </div>
+              <button
+                onClick={() => {
+                  resetInvoiceForm()
+                  setShowCreateInvoice(true)
+                }}
+                className="bg-[#2d5a4a] text-white px-6 py-3 rounded-lg font-semibold hover:bg-[#1e4035] transition flex items-center gap-2"
+              >
+                <span>➕</span> Create Invoice
+              </button>
+            </div>
+
+            {/* Invoice Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-xl p-4 shadow-md border-l-4 border-gray-400">
+                <div className="text-2xl font-bold text-gray-600">{invoices.filter(i => i.status === 'draft').length}</div>
+                <div className="text-sm text-gray-600">Drafts</div>
+              </div>
+              <div className="bg-white rounded-xl p-4 shadow-md border-l-4 border-blue-400">
+                <div className="text-2xl font-bold text-blue-600">{invoices.filter(i => i.status === 'sent').length}</div>
+                <div className="text-sm text-gray-600">Sent</div>
+              </div>
+              <div className="bg-white rounded-xl p-4 shadow-md border-l-4 border-green-400">
+                <div className="text-2xl font-bold text-green-600">{invoices.filter(i => i.status === 'paid').length}</div>
+                <div className="text-sm text-gray-600">Paid</div>
+              </div>
+              <div className="bg-white rounded-xl p-4 shadow-md border-l-4 border-purple-400">
+                <div className="text-2xl font-bold text-purple-600">₦{invoices.filter(i => i.status === 'paid').reduce((sum, i) => sum + i.total_amount, 0).toLocaleString()}</div>
+                <div className="text-sm text-gray-600">Revenue</div>
+              </div>
+            </div>
+
+            {/* Invoices List */}
+            <div className="bg-white rounded-xl shadow-md overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Invoice</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Customer</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase hidden md:table-cell">Phone</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Qty</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Amount</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {invoices.map((invoice) => (
+                      <tr key={invoice.id} className="hover:bg-gray-50 transition">
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <button
+                            onClick={() => openInvoiceDetails(invoice)}
+                            className="text-[#2d5a4a] font-medium hover:underline"
+                          >
+                            {invoice.invoice_number}
+                          </button>
+                          <div className="text-xs text-gray-500">
+                            {new Date(invoice.created_at).toLocaleDateString()}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {invoice.customer_name}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm hidden md:table-cell">
+                          <a href={`tel:${invoice.phone}`} className="text-blue-600 hover:underline">
+                            {invoice.phone}
+                          </a>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm">{invoice.quantity}</td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm font-semibold">₦{invoice.total_amount.toLocaleString()}</td>
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <span className={`px-2 py-1 text-xs rounded-full capitalize ${
+                            invoice.status === 'draft' ? 'bg-gray-100 text-gray-800' :
+                            invoice.status === 'sent' ? 'bg-blue-100 text-blue-800' :
+                            invoice.status === 'paid' ? 'bg-green-100 text-green-800' :
+                            'bg-red-100 text-red-800'
+                          }`}>
+                            {invoice.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => openInvoiceDetails(invoice)}
+                              className="text-blue-600 hover:text-blue-800"
+                              title="View Details"
+                            >
+                              👁️
+                            </button>
+                            <Link
+                              href={`/view-invoice/${invoice.invoice_number}`}
+                              target="_blank"
+                              className="text-green-600 hover:text-green-800"
+                              title="View Invoice"
+                            >
+                              📄
+                            </Link>
+                            <button
+                              onClick={() => shareViaWhatsApp(invoice)}
+                              className="text-[#25D366] hover:text-green-700"
+                              title="Share via WhatsApp"
+                            >
+                              💬
+                            </button>
+                            <button
+                              onClick={() => copyInvoiceLink(invoice.invoice_number)}
+                              className="text-purple-600 hover:text-purple-800"
+                              title="Copy Link"
+                            >
+                              🔗
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {invoices.length === 0 && (
+                  <div className="text-center py-12 text-gray-500">
+                    <div className="text-5xl mb-4">📄</div>
+                    <p>No invoices yet</p>
+                    <p className="text-sm">Click "Create Invoice" to send your first invoice</p>
                   </div>
                 )}
               </div>
@@ -1105,6 +1423,332 @@ export default function AdminPage() {
                   >
                     📄 View Invoice
                   </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Create Invoice Modal */}
+        {showCreateInvoice && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+                <div>
+                  <h2 className="text-xl font-bold text-[#2d5a4a]">Create Invoice</h2>
+                  <p className="text-sm text-gray-500">Send invoice to a premium customer</p>
+                </div>
+                <button
+                  onClick={() => setShowCreateInvoice(false)}
+                  className="text-gray-500 hover:text-gray-700 text-2xl w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100"
+                >
+                  ×
+                </button>
+              </div>
+              
+              <div className="p-6 space-y-6">
+                {/* Customer Information */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase">Customer Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name *</label>
+                      <input
+                        type="text"
+                        value={invoiceForm.customer_name}
+                        onChange={(e) => setInvoiceForm({ ...invoiceForm, customer_name: e.target.value })}
+                        placeholder="John Doe"
+                        className="w-full border-2 border-gray-300 rounded-lg py-2 px-4 focus:border-[#2d5a4a] focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number *</label>
+                      <input
+                        type="tel"
+                        value={invoiceForm.phone}
+                        onChange={(e) => setInvoiceForm({ ...invoiceForm, phone: e.target.value })}
+                        placeholder="08012345678"
+                        className="w-full border-2 border-gray-300 rounded-lg py-2 px-4 focus:border-[#2d5a4a] focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Email (optional)</label>
+                      <input
+                        type="email"
+                        value={invoiceForm.email}
+                        onChange={(e) => setInvoiceForm({ ...invoiceForm, email: e.target.value })}
+                        placeholder="john@example.com"
+                        className="w-full border-2 border-gray-300 rounded-lg py-2 px-4 focus:border-[#2d5a4a] focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Due Date (optional)</label>
+                      <input
+                        type="date"
+                        value={invoiceForm.due_date}
+                        onChange={(e) => setInvoiceForm({ ...invoiceForm, due_date: e.target.value })}
+                        className="w-full border-2 border-gray-300 rounded-lg py-2 px-4 focus:border-[#2d5a4a] focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Address (optional)</label>
+                    <textarea
+                      value={invoiceForm.address}
+                      onChange={(e) => setInvoiceForm({ ...invoiceForm, address: e.target.value })}
+                      placeholder="Enter delivery address"
+                      rows={2}
+                      className="w-full border-2 border-gray-300 rounded-lg py-2 px-4 focus:border-[#2d5a4a] focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Order Details */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase">Order Details</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Quantity (bottles) *</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={invoiceForm.quantity}
+                        onChange={(e) => setInvoiceForm({ ...invoiceForm, quantity: parseInt(e.target.value) || 1 })}
+                        className="w-full border-2 border-gray-300 rounded-lg py-2 px-4 focus:border-[#2d5a4a] focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Price per Bottle (₦)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={invoiceForm.price_per_bottle}
+                        onChange={(e) => setInvoiceForm({ ...invoiceForm, price_per_bottle: parseInt(e.target.value) || 0 })}
+                        className="w-full border-2 border-gray-300 rounded-lg py-2 px-4 focus:border-[#2d5a4a] focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Fee (₦)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={invoiceForm.delivery_fee}
+                        onChange={(e) => setInvoiceForm({ ...invoiceForm, delivery_fee: parseInt(e.target.value) || 0 })}
+                        className="w-full border-2 border-gray-300 rounded-lg py-2 px-4 focus:border-[#2d5a4a] focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Discount (₦)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={invoiceForm.discount}
+                        onChange={(e) => setInvoiceForm({ ...invoiceForm, discount: parseInt(e.target.value) || 0 })}
+                        className="w-full border-2 border-gray-300 rounded-lg py-2 px-4 focus:border-[#2d5a4a] focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
+                    <textarea
+                      value={invoiceForm.notes}
+                      onChange={(e) => setInvoiceForm({ ...invoiceForm, notes: e.target.value })}
+                      placeholder="Any additional notes for the customer"
+                      rows={2}
+                      className="w-full border-2 border-gray-300 rounded-lg py-2 px-4 focus:border-[#2d5a4a] focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Invoice Preview */}
+                <div className="bg-[#f0f7f4] rounded-xl p-4">
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">Invoice Preview</h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">{invoiceForm.quantity} × Palm Wine (₦{invoiceForm.price_per_bottle.toLocaleString()})</span>
+                      <span className="font-medium">₦{(invoiceForm.quantity * invoiceForm.price_per_bottle).toLocaleString()}</span>
+                    </div>
+                    {invoiceForm.delivery_fee > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Delivery Fee</span>
+                        <span className="font-medium">₦{invoiceForm.delivery_fee.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {invoiceForm.discount > 0 && (
+                      <div className="flex justify-between text-green-600">
+                        <span>Discount</span>
+                        <span>-₦{invoiceForm.discount.toLocaleString()}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between border-t pt-2 font-bold text-lg text-[#2d5a4a]">
+                      <span>Total</span>
+                      <span>₦{((invoiceForm.quantity * invoiceForm.price_per_bottle) + invoiceForm.delivery_fee - invoiceForm.discount).toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-4 border-t">
+                  <button
+                    onClick={() => setShowCreateInvoice(false)}
+                    className="flex-1 bg-gray-100 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-200 transition font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={createNewInvoice}
+                    disabled={creatingInvoice}
+                    className="flex-1 bg-[#2d5a4a] text-white px-4 py-3 rounded-lg hover:bg-[#1e4035] transition font-medium disabled:opacity-50"
+                  >
+                    {creatingInvoice ? 'Creating...' : 'Create Invoice'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Invoice Details Modal */}
+        {showInvoiceDetails && selectedInvoice && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+                <div>
+                  <h2 className="text-xl font-bold text-[#2d5a4a]">Invoice Details</h2>
+                  <p className="text-sm text-gray-500">{selectedInvoice.invoice_number}</p>
+                </div>
+                <button
+                  onClick={() => setShowInvoiceDetails(false)}
+                  className="text-gray-500 hover:text-gray-700 text-2xl w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100"
+                >
+                  ×
+                </button>
+              </div>
+              
+              <div className="p-6 space-y-6">
+                {/* Customer Information */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">Customer</h3>
+                    <p className="font-semibold text-[#2d5a4a]">{selectedInvoice.customer_name}</p>
+                    <p className="text-gray-600">
+                      <a href={`tel:${selectedInvoice.phone}`} className="text-blue-600 hover:underline">
+                        {selectedInvoice.phone}
+                      </a>
+                    </p>
+                    {selectedInvoice.email && (
+                      <p className="text-gray-600 text-sm">{selectedInvoice.email}</p>
+                    )}
+                    {selectedInvoice.address && (
+                      <p className="text-gray-600 text-sm mt-2">{selectedInvoice.address}</p>
+                    )}
+                  </div>
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">Invoice Info</h3>
+                    <p className="text-gray-600">
+                      <span className="font-medium">Created:</span> {new Date(selectedInvoice.created_at).toLocaleDateString()}
+                    </p>
+                    {selectedInvoice.due_date && (
+                      <p className="text-gray-600">
+                        <span className="font-medium">Due:</span> {new Date(selectedInvoice.due_date).toLocaleDateString()}
+                      </p>
+                    )}
+                    <div className="mt-2">
+                      <span className={`px-3 py-1 text-sm rounded-full capitalize ${
+                        selectedInvoice.status === 'draft' ? 'bg-gray-100 text-gray-800' :
+                        selectedInvoice.status === 'sent' ? 'bg-blue-100 text-blue-800' :
+                        selectedInvoice.status === 'paid' ? 'bg-green-100 text-green-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {selectedInvoice.status}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Invoice Summary */}
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">Invoice Summary</h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">{selectedInvoice.quantity} × Palm Wine (₦{selectedInvoice.price_per_bottle.toLocaleString()})</span>
+                      <span className="font-medium">₦{(selectedInvoice.quantity * selectedInvoice.price_per_bottle).toLocaleString()}</span>
+                    </div>
+                    {selectedInvoice.delivery_fee > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Delivery Fee</span>
+                        <span className="font-medium">₦{selectedInvoice.delivery_fee.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {selectedInvoice.discount > 0 && (
+                      <div className="flex justify-between text-green-600">
+                        <span>Discount</span>
+                        <span>-₦{selectedInvoice.discount.toLocaleString()}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between border-t pt-2 font-bold text-lg text-[#2d5a4a]">
+                      <span>Total</span>
+                      <span>₦{selectedInvoice.total_amount.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Notes */}
+                {selectedInvoice.notes && (
+                  <div className="bg-amber-50 rounded-xl p-4">
+                    <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Notes</h3>
+                    <p className="text-gray-700">{selectedInvoice.notes}</p>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex flex-wrap gap-3 pt-4 border-t">
+                  {selectedInvoice.status === 'draft' && (
+                    <>
+                      <button
+                        onClick={() => shareViaWhatsApp(selectedInvoice)}
+                        className="flex-1 bg-[#25D366] text-white px-4 py-2 rounded-lg hover:bg-green-600 transition font-medium flex items-center justify-center gap-2"
+                      >
+                        💬 Send via WhatsApp
+                      </button>
+                      <button
+                        onClick={() => sendInvoice(selectedInvoice.id)}
+                        disabled={sendingInvoice}
+                        className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium disabled:opacity-50"
+                      >
+                        {sendingInvoice ? 'Sending...' : '📤 Send Invoice'}
+                      </button>
+                    </>
+                  )}
+                  {selectedInvoice.status === 'sent' && (
+                    <button
+                      onClick={() => updateInvoiceStatus(selectedInvoice.id, 'paid')}
+                      className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition font-medium"
+                    >
+                      ✓ Mark as Paid
+                    </button>
+                  )}
+                  <button
+                    onClick={() => copyInvoiceLink(selectedInvoice.invoice_number)}
+                    className="bg-purple-100 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-200 transition font-medium flex items-center gap-2"
+                  >
+                    🔗 Copy Link
+                  </button>
+                  <Link
+                    href={`/view-invoice/${selectedInvoice.invoice_number}`}
+                    target="_blank"
+                    className="bg-[#2d5a4a] text-white px-4 py-2 rounded-lg hover:bg-[#1e4035] transition font-medium flex items-center gap-2"
+                  >
+                    📄 View Invoice
+                  </Link>
+                  {(selectedInvoice.status === 'draft' || selectedInvoice.status === 'cancelled') && (
+                    <button
+                      onClick={() => deleteInvoice(selectedInvoice.id)}
+                      className="bg-red-100 text-red-700 px-4 py-2 rounded-lg hover:bg-red-200 transition font-medium"
+                    >
+                      🗑️ Delete
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
