@@ -28,11 +28,8 @@ export default function MobileNav() {
   const navLinks = [
     { href: '/', label: 'Home', icon: '🏠' },
     { href: '/order', label: 'Order Now', icon: '🍷' },
-    { href: '/track', label: 'Track Order', icon: '📦' },
-    { href: '/lookup', label: 'Invoice/Receipt', icon: '📄' },
     { href: '/about', label: 'About', icon: 'ℹ️' },
     { href: '/contact', label: 'Contact', icon: '📞' },
-    { href: '/admin', label: 'Admin', icon: '⚙️' },
   ]
 
   return (
