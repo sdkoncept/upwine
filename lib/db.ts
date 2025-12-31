@@ -50,13 +50,30 @@ interface Invoice {
   updated_at: string;
 }
 
+interface DiscountCode {
+  id: number;
+  code: string;
+  type: 'percentage' | 'fixed';
+  value: number; // Percentage (0-100) or fixed amount in naira
+  min_order_amount?: number; // Minimum order amount to use this code
+  max_uses?: number; // Maximum number of times this code can be used
+  used_count: number; // How many times it's been used
+  expires_at?: string; // ISO date string
+  is_active: boolean;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 interface Database {
   orders: Order[];
   stock: Stock[];
   invoices: Invoice[];
+  discount_codes: DiscountCode[];
   settings: Record<string, string>;
   nextOrderId: number;
   nextInvoiceId: number;
+  nextDiscountCodeId: number;
 }
 
 function getDefaultDatabase(): Database {
@@ -64,6 +81,7 @@ function getDefaultDatabase(): Database {
     orders: [],
     stock: [],
     invoices: [],
+    discount_codes: [],
     settings: {
       price_per_bottle: '2000',
       weekly_stock: '100',
@@ -75,6 +93,7 @@ function getDefaultDatabase(): Database {
     },
     nextOrderId: 1,
     nextInvoiceId: 1,
+    nextDiscountCodeId: 1,
   };
 }
 
@@ -507,6 +526,180 @@ export function deleteInvoice(invoiceId: number) {
   
   if (index !== -1) {
     db.invoices.splice(index, 1);
+    saveDatabase(db);
+    return true;
+  }
+  return false;
+}
+
+// ============ DISCOUNT CODE FUNCTIONS ============
+
+export function createDiscountCode(codeData: {
+  code: string;
+  type: 'percentage' | 'fixed';
+  value: number;
+  min_order_amount?: number;
+  max_uses?: number;
+  expires_at?: string;
+  description?: string;
+}) {
+  const db = loadDatabase();
+  
+  // Ensure discount_codes array exists
+  if (!db.discount_codes) {
+    db.discount_codes = [];
+  }
+  if (!db.nextDiscountCodeId) {
+    db.nextDiscountCodeId = 1;
+  }
+  
+  // Check if code already exists
+  const existingCode = (db.discount_codes || []).find(
+    dc => dc.code.toUpperCase() === codeData.code.toUpperCase()
+  );
+  
+  if (existingCode) {
+    throw new Error('Discount code already exists');
+  }
+  
+  const now = new Date().toISOString();
+  
+  const newCode: DiscountCode = {
+    id: db.nextDiscountCodeId++,
+    code: codeData.code.toUpperCase(),
+    type: codeData.type,
+    value: codeData.value,
+    min_order_amount: codeData.min_order_amount,
+    max_uses: codeData.max_uses,
+    used_count: 0,
+    expires_at: codeData.expires_at,
+    is_active: true,
+    description: codeData.description,
+    created_at: now,
+    updated_at: now,
+  };
+  
+  db.discount_codes.push(newCode);
+  saveDatabase(db);
+  
+  return newCode;
+}
+
+export function getDiscountCodes(activeOnly: boolean = false) {
+  const db = loadDatabase();
+  let codes = db.discount_codes || [];
+  
+  if (activeOnly) {
+    const now = new Date();
+    codes = codes.filter(code => {
+      if (!code.is_active) return false;
+      if (code.expires_at && new Date(code.expires_at) < now) return false;
+      if (code.max_uses && code.used_count >= code.max_uses) return false;
+      return true;
+    });
+  }
+  
+  return codes.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+}
+
+export function getDiscountCode(code: string) {
+  const db = loadDatabase();
+  return (db.discount_codes || []).find(
+    dc => dc.code.toUpperCase() === code.toUpperCase()
+  ) || null;
+}
+
+export function validateDiscountCode(code: string, orderAmount: number): { valid: boolean; discount: number; error?: string } {
+  const discountCode = getDiscountCode(code);
+  
+  if (!discountCode) {
+    return { valid: false, discount: 0, error: 'Invalid discount code' };
+  }
+  
+  if (!discountCode.is_active) {
+    return { valid: false, discount: 0, error: 'This discount code is not active' };
+  }
+  
+  // Check expiration
+  if (discountCode.expires_at) {
+    const now = new Date();
+    const expiresAt = new Date(discountCode.expires_at);
+    if (expiresAt < now) {
+      return { valid: false, discount: 0, error: 'This discount code has expired' };
+    }
+  }
+  
+  // Check max uses
+  if (discountCode.max_uses && discountCode.used_count >= discountCode.max_uses) {
+    return { valid: false, discount: 0, error: 'This discount code has reached its usage limit' };
+  }
+  
+  // Check minimum order amount
+  if (discountCode.min_order_amount && orderAmount < discountCode.min_order_amount) {
+    return { 
+      valid: false, 
+      discount: 0, 
+      error: `Minimum order amount of ₦${discountCode.min_order_amount.toLocaleString()} required` 
+    };
+  }
+  
+  // Calculate discount
+  let discount = 0;
+  if (discountCode.type === 'percentage') {
+    discount = Math.round(orderAmount * (discountCode.value / 100));
+  } else {
+    discount = discountCode.value;
+    // Don't allow discount to exceed order amount
+    if (discount > orderAmount) {
+      discount = orderAmount;
+    }
+  }
+  
+  return { valid: true, discount };
+}
+
+export function useDiscountCode(code: string) {
+  const db = loadDatabase();
+  const discountCode = (db.discount_codes || []).find(
+    dc => dc.code.toUpperCase() === code.toUpperCase()
+  );
+  
+  if (discountCode) {
+    discountCode.used_count++;
+    discountCode.updated_at = new Date().toISOString();
+    saveDatabase(db);
+    return discountCode;
+  }
+  return null;
+}
+
+export function getDiscountCodeById(id: number) {
+  const db = loadDatabase();
+  return (db.discount_codes || []).find(dc => dc.id === id) || null;
+}
+
+export function updateDiscountCode(id: number, updates: Partial<DiscountCode>) {
+  const db = loadDatabase();
+  const code = (db.discount_codes || []).find(dc => dc.id === id);
+  
+  if (code) {
+    Object.assign(code, updates, { updated_at: new Date().toISOString() });
+    // Ensure code is uppercase
+    if (updates.code) {
+      code.code = updates.code.toUpperCase();
+    }
+    saveDatabase(db);
+    return code;
+  }
+  return null;
+}
+
+export function deleteDiscountCode(id: number) {
+  const db = loadDatabase();
+  const index = (db.discount_codes || []).findIndex(dc => dc.id === id);
+  
+  if (index !== -1) {
+    db.discount_codes.splice(index, 1);
     saveDatabase(db);
     return true;
   }

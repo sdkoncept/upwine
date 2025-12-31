@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createOrder, getOrders } from '@/lib/db'
+import { createOrder, getOrders, useDiscountCode } from '@/lib/db'
 import { sendWhatsAppMessage, formatOrderConfirmation, formatAdminNotification } from '@/lib/whatsapp'
 import { getSetting } from '@/lib/db'
 
@@ -15,6 +15,7 @@ export async function POST(request: Request) {
       delivery_type,
       delivery_fee,
       payment_method,
+      discount_code,
     } = body
 
     // Validate required fields
@@ -77,6 +78,16 @@ export async function POST(request: Request) {
       delivery_fee: delivery_fee || 0,
       payment_method,
     })
+
+    // Mark discount code as used if provided
+    if (discount_code && discount_code.trim()) {
+      try {
+        useDiscountCode(discount_code.trim())
+      } catch (error) {
+        console.error('Error marking discount code as used:', error)
+        // Don't fail the order if discount code tracking fails
+      }
+    }
 
     // Get order details for notifications
     const order = {

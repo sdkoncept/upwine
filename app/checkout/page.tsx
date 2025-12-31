@@ -9,8 +9,11 @@ function CheckoutContent() {
   const searchParams = useSearchParams()
   const [loading, setLoading] = useState(false)
   const [deliveryFee, setDeliveryFee] = useState(0)
-  const [referralCode, setReferralCode] = useState('')
-  const [referralApplied, setReferralApplied] = useState(false)
+  const [discountCode, setDiscountCode] = useState('')
+  const [discountApplied, setDiscountApplied] = useState(false)
+  const [discountAmount, setDiscountAmount] = useState(0)
+  const [discountError, setDiscountError] = useState('')
+  const [validatingCode, setValidatingCode] = useState(false)
   const [formData, setFormData] = useState({
     customer_name: '',
     phone: '',
@@ -25,17 +28,54 @@ function CheckoutContent() {
 
   const pricePerBottle = 2000
   const subtotal = quantity * pricePerBottle
-  const discount = referralApplied ? Math.round(subtotal * 0.05) : 0 // 5% discount with referral
-  const total = subtotal + deliveryFee - discount
+  const total = subtotal + deliveryFee - discountAmount
 
-  const applyReferralCode = () => {
-    // Simple referral code validation (in production, validate against database)
-    const validCodes = ['UPWYNE5', 'FRESH5', 'PALMWINE', 'FRIEND5']
-    if (validCodes.includes(referralCode.toUpperCase())) {
-      setReferralApplied(true)
-    } else if (referralCode.length > 0) {
-      alert('Invalid referral code')
+  const applyDiscountCode = async () => {
+    if (!discountCode.trim()) {
+      setDiscountError('Please enter a discount code')
+      return
     }
+
+    setValidatingCode(true)
+    setDiscountError('')
+
+    try {
+      const response = await fetch('/api/discount-codes/validate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          code: discountCode.trim(),
+          order_amount: subtotal + deliveryFee,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (data.valid) {
+        setDiscountApplied(true)
+        setDiscountAmount(data.discount)
+        setDiscountError('')
+      } else {
+        setDiscountApplied(false)
+        setDiscountAmount(0)
+        setDiscountError(data.error || 'Invalid discount code')
+      }
+    } catch (error) {
+      setDiscountApplied(false)
+      setDiscountAmount(0)
+      setDiscountError('Failed to validate discount code. Please try again.')
+    } finally {
+      setValidatingCode(false)
+    }
+  }
+
+  const removeDiscountCode = () => {
+    setDiscountCode('')
+    setDiscountApplied(false)
+    setDiscountAmount(0)
+    setDiscountError('')
   }
 
   useEffect(() => {
@@ -111,6 +151,7 @@ function CheckoutContent() {
         delivery_type: deliveryType,
         delivery_fee: deliveryFee || 0,
         payment_method: formData.payment_method,
+        discount_code: discountApplied ? discountCode : undefined,
       }
 
       const response = await fetch('/api/orders', {
@@ -330,41 +371,66 @@ function CheckoutContent() {
                 )}
               </div>
 
-              {/* Referral Code Section */}
+              {/* Discount Code Section */}
               <div className="border-t border-gray-200 pt-4">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  🎁 Have a Referral Code?
+                  🎁 Have a Discount Code?
                 </label>
-                {!referralApplied ? (
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={referralCode}
-                      onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
-                      placeholder="Enter code"
-                      className="flex-1 border-2 border-gray-300 rounded py-2 px-4 focus:border-primary focus:outline-none font-mono"
-                    />
-                    <button
-                      type="button"
-                      onClick={applyReferralCode}
-                      className="bg-primary text-white px-4 py-2 rounded font-semibold hover:bg-secondary transition"
-                    >
-                      Apply
-                    </button>
+                {!discountApplied ? (
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={discountCode}
+                        onChange={(e) => {
+                          setDiscountCode(e.target.value.toUpperCase())
+                          setDiscountError('')
+                        }}
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            applyDiscountCode()
+                          }
+                        }}
+                        placeholder="Enter discount code"
+                        className="flex-1 border-2 border-gray-300 rounded py-2 px-4 focus:border-primary focus:outline-none font-mono"
+                        disabled={validatingCode}
+                      />
+                      <button
+                        type="button"
+                        onClick={applyDiscountCode}
+                        disabled={validatingCode}
+                        className="bg-primary text-white px-4 py-2 rounded font-semibold hover:bg-secondary transition disabled:opacity-50"
+                      >
+                        {validatingCode ? '...' : 'Apply'}
+                      </button>
+                    </div>
+                    {discountError && (
+                      <p className="text-xs text-red-600">{discountError}</p>
+                    )}
                   </div>
                 ) : (
                   <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                     <div className="flex items-center justify-between">
                       <div className="text-sm text-green-800">
-                        <strong>✓ Referral Applied!</strong>
-                        <p className="text-xs mt-1">5% discount has been applied to your order</p>
+                        <strong>✓ Discount Code Applied!</strong>
+                        <p className="text-xs mt-1">Code: {discountCode}</p>
                       </div>
-                      <span className="text-green-800 font-bold">-₦{discount.toLocaleString()}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-green-800 font-bold">-₦{discountAmount.toLocaleString()}</span>
+                        <button
+                          type="button"
+                          onClick={removeDiscountCode}
+                          className="text-red-600 hover:text-red-800 text-sm font-medium"
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
                 <p className="text-xs text-gray-500 mt-1">
-                  Get a referral code from a friend or use: FRESH5
+                  Enter a valid discount code to save on your order
                 </p>
               </div>
 
@@ -416,10 +482,10 @@ function CheckoutContent() {
                   <span className="font-semibold">₦{deliveryFee.toLocaleString()}</span>
                 </div>
               )}
-              {discount > 0 && (
+              {discountAmount > 0 && (
                 <div className="flex justify-between text-green-600">
-                  <span>Referral Discount (5%):</span>
-                  <span className="font-semibold">-₦{discount.toLocaleString()}</span>
+                  <span>Discount Code ({discountCode}):</span>
+                  <span className="font-semibold">-₦{discountAmount.toLocaleString()}</span>
                 </div>
               )}
             </div>

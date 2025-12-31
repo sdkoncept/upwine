@@ -69,6 +69,21 @@ interface Invoice {
   created_at: string
 }
 
+interface DiscountCode {
+  id: number
+  code: string
+  type: 'percentage' | 'fixed'
+  value: number
+  min_order_amount?: number
+  max_uses?: number
+  used_count: number
+  expires_at?: string
+  is_active: boolean
+  description?: string
+  created_at: string
+  updated_at: string
+}
+
 export default function AdminPage() {
   const router = useRouter()
   const [orders, setOrders] = useState<Order[]>([])
@@ -77,7 +92,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true)
   const [authenticated, setAuthenticated] = useState(false)
   const [checkingAuth, setCheckingAuth] = useState(true)
-  const [activeTab, setActiveTab] = useState<'orders' | 'stock' | 'sales' | 'invoices' | 'settings'>('orders')
+  const [activeTab, setActiveTab] = useState<'orders' | 'stock' | 'sales' | 'invoices' | 'discount-codes' | 'settings'>('orders')
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [showOrderDetails, setShowOrderDetails] = useState(false)
   const [statusFilter, setStatusFilter] = useState<string>('all')
@@ -134,6 +149,22 @@ export default function AdminPage() {
   })
   const [creatingInvoice, setCreatingInvoice] = useState(false)
   const [sendingInvoice, setSendingInvoice] = useState(false)
+  
+  // Discount Code State
+  const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([])
+  const [showCreateDiscountCode, setShowCreateDiscountCode] = useState(false)
+  const [selectedDiscountCode, setSelectedDiscountCode] = useState<DiscountCode | null>(null)
+  const [showDiscountCodeDetails, setShowDiscountCodeDetails] = useState(false)
+  const [discountCodeForm, setDiscountCodeForm] = useState({
+    code: '',
+    type: 'percentage' as 'percentage' | 'fixed',
+    value: 10,
+    min_order_amount: '',
+    max_uses: '',
+    expires_at: '',
+    description: '',
+  })
+  const [creatingDiscountCode, setCreatingDiscountCode] = useState(false)
 
   useEffect(() => {
     checkAuth()
@@ -148,6 +179,12 @@ export default function AdminPage() {
   useEffect(() => {
     if (authenticated && activeTab === 'invoices') {
       fetchInvoices()
+    }
+  }, [authenticated, activeTab])
+
+  useEffect(() => {
+    if (authenticated && activeTab === 'discount-codes') {
+      fetchDiscountCodes()
     }
   }, [authenticated, activeTab])
 
@@ -398,6 +435,110 @@ export default function AdminPage() {
     window.open(whatsappUrl, '_blank')
   }
 
+  // Discount Code Functions
+  const fetchDiscountCodes = async () => {
+    try {
+      const res = await fetch('/api/admin/discount-codes')
+      const data = await res.json()
+      setDiscountCodes(data)
+    } catch (error) {
+      console.error('Error fetching discount codes:', error)
+    }
+  }
+
+  const resetDiscountCodeForm = () => {
+    setDiscountCodeForm({
+      code: '',
+      type: 'percentage',
+      value: 10,
+      min_order_amount: '',
+      max_uses: '',
+      expires_at: '',
+      description: '',
+    })
+  }
+
+  const createNewDiscountCode = async () => {
+    if (!discountCodeForm.code.trim()) {
+      alert('Please enter a discount code')
+      return
+    }
+    if (discountCodeForm.value <= 0) {
+      alert('Discount value must be greater than 0')
+      return
+    }
+    if (discountCodeForm.type === 'percentage' && discountCodeForm.value > 100) {
+      alert('Percentage discount cannot exceed 100%')
+      return
+    }
+
+    setCreatingDiscountCode(true)
+    try {
+      const res = await fetch('/api/admin/discount-codes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: discountCodeForm.code.trim(),
+          type: discountCodeForm.type,
+          value: discountCodeForm.value,
+          min_order_amount: discountCodeForm.min_order_amount ? parseFloat(discountCodeForm.min_order_amount) : undefined,
+          max_uses: discountCodeForm.max_uses ? parseInt(discountCodeForm.max_uses) : undefined,
+          expires_at: discountCodeForm.expires_at || undefined,
+          description: discountCodeForm.description?.trim(),
+        })
+      })
+      const data = await res.json()
+      
+      if (data.error) {
+        alert(data.error)
+      } else {
+        alert(`Discount code ${data.discount_code.code} created successfully!`)
+        setShowCreateDiscountCode(false)
+        resetDiscountCodeForm()
+        fetchDiscountCodes()
+      }
+    } catch (error) {
+      console.error('Error creating discount code:', error)
+      alert('Failed to create discount code')
+    } finally {
+      setCreatingDiscountCode(false)
+    }
+  }
+
+  const updateDiscountCodeStatus = async (codeId: number, isActive: boolean) => {
+    try {
+      await fetch(`/api/admin/discount-codes/${codeId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: isActive })
+      })
+      fetchDiscountCodes()
+    } catch (error) {
+      console.error('Error updating discount code status:', error)
+      alert('Failed to update discount code status')
+    }
+  }
+
+  const deleteDiscountCode = async (codeId: number) => {
+    if (!confirm('Are you sure you want to delete this discount code?')) return
+    
+    try {
+      await fetch(`/api/admin/discount-codes/${codeId}`, {
+        method: 'DELETE',
+      })
+      fetchDiscountCodes()
+      setShowDiscountCodeDetails(false)
+    } catch (error) {
+      console.error('Error deleting discount code:', error)
+      alert('Failed to delete discount code')
+    }
+  }
+
+  const openDiscountCodeDetails = (code: DiscountCode) => {
+    setSelectedDiscountCode(code)
+    setShowDiscountCodeDetails(true)
+  }
+
   // Order Lookup Functions
   const searchOrder = () => {
     if (!searchOrderNumber.trim()) {
@@ -624,8 +765,8 @@ export default function AdminPage() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div>
             <h1 className="text-3xl md:text-4xl font-bold text-[#2d5a4a]">
-              Admin Dashboard
-            </h1>
+            Admin Dashboard
+          </h1>
             <p className="text-gray-600 mt-1">Manage your Upwyne business</p>
           </div>
           <div className="flex items-center gap-3">
@@ -635,12 +776,12 @@ export default function AdminPage() {
             >
               <span>🔄</span> Refresh
             </button>
-            <button
-              onClick={handleLogout}
-              className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition"
-            >
-              Logout
-            </button>
+          <button
+            onClick={handleLogout}
+            className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition"
+          >
+            Logout
+          </button>
           </div>
         </div>
 
@@ -670,11 +811,12 @@ export default function AdminPage() {
             {[
               { key: 'orders', label: 'Orders', icon: '📋', count: orders.length },
               { key: 'invoices', label: 'Invoices', icon: '📄', count: invoices.length },
+              { key: 'discount-codes', label: 'Discount Codes', icon: '🎟️', count: discountCodes.length },
               { key: 'stock', label: 'Stock', icon: '🍷' },
               { key: 'sales', label: 'Sales Analytics', icon: '📊' },
               { key: 'settings', label: 'Settings', icon: '⚙️' },
             ].map((tab) => (
-              <button
+            <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key as any)}
                 className={`flex-1 min-w-max px-6 py-4 font-medium text-sm transition flex items-center justify-center gap-2 ${
@@ -692,7 +834,7 @@ export default function AdminPage() {
                     {tab.count}
                   </span>
                 )}
-              </button>
+            </button>
             ))}
           </nav>
         </div>
@@ -733,7 +875,7 @@ export default function AdminPage() {
                       Clear
                     </button>
                   )}
-                </div>
+              </div>
               </div>
 
               {/* Lookup Error */}
@@ -760,14 +902,14 @@ export default function AdminPage() {
                           <p className="text-sm text-gray-500">
                             {lookupOrder.delivery_type === 'pickup' ? 'Pickup Order' : 'Delivery Order'}
                           </p>
-                        </div>
-                      </div>
-                      
+              </div>
+            </div>
+
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                         <div>
                           <span className="text-gray-500">Customer:</span>
                           <p className="font-semibold">{lookupOrder.customer_name}</p>
-                        </div>
+              </div>
                         <div>
                           <span className="text-gray-500">Phone:</span>
                           <p className="font-semibold">
@@ -982,7 +1124,7 @@ export default function AdminPage() {
                             <Link
                               href={`/invoice/${order.order_number}`}
                               target="_blank"
-                              className="text-green-600 hover:text-green-800"
+                                  className="text-green-600 hover:text-green-800"
                               title="View Invoice"
                             >
                               📄
@@ -1012,7 +1154,7 @@ export default function AdminPage() {
                 <h2 className="text-xl font-semibold text-gray-800">Manual Invoices</h2>
                 <p className="text-gray-500 text-sm">Create and send invoices to premium customers</p>
               </div>
-              <button
+                              <button
                 onClick={() => {
                   resetInvoiceForm()
                   setShowCreateInvoice(true)
@@ -1104,7 +1246,7 @@ export default function AdminPage() {
                             <Link
                               href={`/view-invoice/${invoice.invoice_number}`}
                               target="_blank"
-                              className="text-green-600 hover:text-green-800"
+                                className="text-green-600 hover:text-green-800"
                               title="View Invoice"
                             >
                               📄
@@ -1115,7 +1257,7 @@ export default function AdminPage() {
                               title="Share via WhatsApp"
                             >
                               💬
-                            </button>
+                              </button>
                             <button
                               onClick={() => copyInvoiceLink(invoice.invoice_number)}
                               className="text-purple-600 hover:text-purple-800"
@@ -1147,7 +1289,7 @@ export default function AdminPage() {
             <div className="bg-white rounded-xl shadow-md p-6">
               <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
                 <span>🍷</span> Current Stock
-              </h2>
+            </h2>
               <div className="bg-gradient-to-br from-[#2d5a4a] to-[#3d6a5a] rounded-xl p-6 text-white mb-6">
                 <div className="text-5xl font-bold mb-2">{stock.available_bottles}</div>
                 <div className="text-[#a8d4c0]">bottles available this week</div>
@@ -1164,7 +1306,7 @@ export default function AdminPage() {
               </div>
 
               {/* Stock Progress */}
-              <div className="mb-6">
+            <div className="mb-6">
                 <div className="flex justify-between text-sm mb-2">
                   <span className="text-gray-600">Stock Level</span>
                   <span className="font-medium text-[#2d5a4a]">
@@ -1192,13 +1334,13 @@ export default function AdminPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     New Stock Amount
                   </label>
-                  <input
-                    type="number"
-                    value={newStock}
-                    onChange={(e) => setNewStock(parseInt(e.target.value) || 0)}
-                    min="0"
+                <input
+                  type="number"
+                  value={newStock}
+                  onChange={(e) => setNewStock(parseInt(e.target.value) || 0)}
+                  min="0"
                     className="w-full border-2 border-gray-300 rounded-lg py-3 px-4 focus:border-[#2d5a4a] focus:outline-none text-lg font-semibold"
-                  />
+                />
                 </div>
                 <button
                   onClick={resetStock}
@@ -1272,16 +1414,16 @@ export default function AdminPage() {
                 )}
 
                 <div className="flex items-end">
-                  <button
+                <button
                     onClick={exportToCSV}
                     className="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition font-semibold flex items-center justify-center gap-2"
-                  >
+                >
                     <span>📥</span> Export CSV
-                  </button>
+                </button>
                 </div>
               </div>
-            </div>
-
+              </div>
+              
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500">
@@ -1439,6 +1581,134 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* Discount Codes Tab */}
+        {activeTab === 'discount-codes' && (
+          <div className="space-y-6">
+            {/* Header with Create Button */}
+            <div className="bg-white rounded-xl shadow-md p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-800">Discount Codes</h2>
+                <p className="text-gray-500 text-sm">Create and manage discount codes for customers</p>
+              </div>
+              <button
+                onClick={() => {
+                  resetDiscountCodeForm()
+                  setShowCreateDiscountCode(true)
+                }}
+                className="bg-[#2d5a4a] text-white px-6 py-3 rounded-lg font-semibold hover:bg-[#1e4035] transition flex items-center gap-2"
+              >
+                <span>➕</span> Create Discount Code
+              </button>
+            </div>
+
+            {/* Discount Codes List */}
+            <div className="bg-white rounded-xl shadow-md overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Code</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Type</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Value</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase hidden md:table-cell">Min Order</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase hidden lg:table-cell">Uses</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase hidden lg:table-cell">Expires</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {discountCodes.map((code) => {
+                      const isExpired = code.expires_at && new Date(code.expires_at) < new Date()
+                      const isMaxedOut = code.max_uses && code.used_count >= code.max_uses
+                      const isActive = code.is_active && !isExpired && !isMaxedOut
+                      
+                      return (
+                        <tr key={code.id} className="hover:bg-gray-50 transition">
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="font-mono font-semibold text-[#2d5a4a]">{code.code}</div>
+                            {code.description && (
+                              <div className="text-xs text-gray-500">{code.description}</div>
+                            )}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              code.type === 'percentage' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
+                            }`}>
+                              {code.type === 'percentage' ? `${code.value}%` : `₦${code.value.toLocaleString()}`}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm">
+                            {code.type === 'percentage' 
+                              ? `${code.value}% off` 
+                              : `₦${code.value.toLocaleString()} off`}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm hidden md:table-cell">
+                            {code.min_order_amount ? `₦${code.min_order_amount.toLocaleString()}` : '-'}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm hidden lg:table-cell">
+                            {code.max_uses ? `${code.used_count}/${code.max_uses}` : `${code.used_count} uses`}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm hidden lg:table-cell">
+                            {code.expires_at 
+                              ? new Date(code.expires_at).toLocaleDateString()
+                              : 'No expiry'}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 text-xs rounded-full ${
+                              isActive ? 'bg-green-100 text-green-800' :
+                              isExpired ? 'bg-red-100 text-red-800' :
+                              isMaxedOut ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {isActive ? 'Active' :
+                               isExpired ? 'Expired' :
+                               isMaxedOut ? 'Maxed Out' :
+                               'Inactive'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => openDiscountCodeDetails(code)}
+                                className="text-blue-600 hover:text-blue-800"
+                                title="View Details"
+                              >
+                                👁️
+                              </button>
+                              <button
+                                onClick={() => updateDiscountCodeStatus(code.id, !code.is_active)}
+                                className={code.is_active ? 'text-yellow-600 hover:text-yellow-800' : 'text-green-600 hover:text-green-800'}
+                                title={code.is_active ? 'Deactivate' : 'Activate'}
+                              >
+                                {code.is_active ? '⏸️' : '▶️'}
+                              </button>
+                              <button
+                                onClick={() => deleteDiscountCode(code.id)}
+                                className="text-red-600 hover:text-red-800"
+                                title="Delete"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+                {discountCodes.length === 0 && (
+                  <div className="text-center py-12 text-gray-500">
+                    <div className="text-5xl mb-4">🎟️</div>
+                    <p>No discount codes yet</p>
+                    <p className="text-sm">Click "Create Discount Code" to add your first code</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Settings Tab */}
         {activeTab === 'settings' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1447,7 +1717,7 @@ export default function AdminPage() {
                 <span>💰</span> Business Settings
               </h2>
               <div className="space-y-4">
-                <div>
+                  <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Price per Bottle (₦)
                   </label>
@@ -1457,8 +1727,8 @@ export default function AdminPage() {
                     onChange={(e) => setSettings({ ...settings, price_per_bottle: e.target.value })}
                     className="w-full border-2 border-gray-300 rounded-lg py-2 px-4 focus:border-[#2d5a4a] focus:outline-none"
                   />
-                </div>
-                <div>
+                  </div>
+                  <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Weekly Stock Default
                   </label>
@@ -1480,15 +1750,15 @@ export default function AdminPage() {
                     className="w-full border-2 border-gray-300 rounded-lg py-2 px-4 focus:border-[#2d5a4a] focus:outline-none"
                   />
                 </div>
-              </div>
-            </div>
+                  </div>
+                </div>
 
             <div className="bg-white rounded-xl shadow-md p-6">
               <h2 className="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
                 <span>📱</span> Notification Settings
               </h2>
               <div className="space-y-4">
-                <div>
+                    <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Admin Phone (for WhatsApp notifications)
                   </label>
@@ -1500,8 +1770,8 @@ export default function AdminPage() {
                     className="w-full border-2 border-gray-300 rounded-lg py-2 px-4 focus:border-[#2d5a4a] focus:outline-none"
                   />
                   <p className="text-xs text-gray-500 mt-1">Enter Nigerian format without +234</p>
-                </div>
-                <div>
+                    </div>
+                    <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Admin Email
                   </label>
@@ -1550,14 +1820,14 @@ export default function AdminPage() {
                     <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">Customer</h3>
                     <p className="font-semibold text-[#2d5a4a]">{selectedOrder.customer_name}</p>
                     <p className="text-gray-600">
-                      <a href={`tel:${selectedOrder.phone}`} className="text-blue-600 hover:underline">
-                        {selectedOrder.phone}
-                      </a>
+                        <a href={`tel:${selectedOrder.phone}`} className="text-blue-600 hover:underline">
+                          {selectedOrder.phone}
+                        </a>
                     </p>
                     {selectedOrder.email && (
                       <p className="text-gray-600 text-sm">{selectedOrder.email}</p>
                     )}
-                  </div>
+                      </div>
                   <div className="bg-gray-50 rounded-xl p-4">
                     <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">Delivery</h3>
                     <p className="font-semibold">
@@ -1569,8 +1839,8 @@ export default function AdminPage() {
                     {selectedOrder.delivery_type === 'pickup' && (
                       <p className="text-gray-600 text-sm">24 Tony Anenih Avenue, G.R.A</p>
                     )}
-                  </div>
-                </div>
+                    </div>
+                        </div>
 
                 {/* Order Details */}
                 <div className="bg-gray-50 rounded-xl p-4">
@@ -1614,7 +1884,7 @@ export default function AdminPage() {
                         Mark as Paid
                       </button>
                     )}
-                  </div>
+                      </div>
                   <div className="bg-gray-50 rounded-xl p-4">
                     <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">Order Status</h3>
                     <span className={`px-3 py-1 text-sm rounded-full capitalize ${
@@ -1630,8 +1900,8 @@ export default function AdminPage() {
                     <p className="text-xs text-gray-500 mt-2">
                       Ordered: {new Date(selectedOrder.created_at).toLocaleString()}
                     </p>
-                  </div>
-                </div>
+                    </div>
+                      </div>
 
                 {/* Action Buttons */}
                 <div className="flex flex-wrap gap-3 pt-4 border-t">
@@ -1677,32 +1947,32 @@ export default function AdminPage() {
                 </div>
               </div>
             </div>
-          </div>
-        )}
+                      </div>
+                    )}
 
         {/* Create Invoice Modal */}
         {showCreateInvoice && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
               <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-                <div>
+                      <div>
                   <h2 className="text-xl font-bold text-[#2d5a4a]">Create Invoice</h2>
                   <p className="text-sm text-gray-500">Send invoice to a premium customer</p>
-                </div>
+                      </div>
                 <button
                   onClick={() => setShowCreateInvoice(false)}
                   className="text-gray-500 hover:text-gray-700 text-2xl w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100"
                 >
                   ×
                 </button>
-              </div>
-              
+                </div>
+
               <div className="p-6 space-y-6">
                 {/* Customer Information */}
                 <div className="space-y-4">
                   <h3 className="text-sm font-semibold text-gray-500 uppercase">Customer Information</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
+                      <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name *</label>
                       <input
                         type="text"
@@ -1711,7 +1981,7 @@ export default function AdminPage() {
                         placeholder="John Doe"
                         className="w-full border-2 border-gray-300 rounded-lg py-2 px-4 focus:border-[#2d5a4a] focus:outline-none"
                       />
-                    </div>
+                        </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number *</label>
                       <input
@@ -1721,8 +1991,8 @@ export default function AdminPage() {
                         placeholder="08012345678"
                         className="w-full border-2 border-gray-300 rounded-lg py-2 px-4 focus:border-[#2d5a4a] focus:outline-none"
                       />
-                    </div>
-                    <div>
+                      </div>
+                      <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Email (optional)</label>
                       <input
                         type="email"
@@ -1732,7 +2002,7 @@ export default function AdminPage() {
                         className="w-full border-2 border-gray-300 rounded-lg py-2 px-4 focus:border-[#2d5a4a] focus:outline-none"
                       />
                     </div>
-                    <div>
+                        <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Due Date (optional)</label>
                       <input
                         type="date"
@@ -1740,8 +2010,8 @@ export default function AdminPage() {
                         onChange={(e) => setInvoiceForm({ ...invoiceForm, due_date: e.target.value })}
                         className="w-full border-2 border-gray-300 rounded-lg py-2 px-4 focus:border-[#2d5a4a] focus:outline-none"
                       />
-                    </div>
-                  </div>
+                        </div>
+                      </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Address (optional)</label>
                     <textarea
@@ -1751,14 +2021,14 @@ export default function AdminPage() {
                       rows={2}
                       className="w-full border-2 border-gray-300 rounded-lg py-2 px-4 focus:border-[#2d5a4a] focus:outline-none"
                     />
-                  </div>
+                    </div>
                 </div>
 
                 {/* Order Details */}
                 <div className="space-y-4">
                   <h3 className="text-sm font-semibold text-gray-500 uppercase">Order Details</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
+                      <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Quantity (bottles) *</label>
                       <input
                         type="number"
@@ -1767,8 +2037,8 @@ export default function AdminPage() {
                         onChange={(e) => setInvoiceForm({ ...invoiceForm, quantity: parseInt(e.target.value) || 1 })}
                         className="w-full border-2 border-gray-300 rounded-lg py-2 px-4 focus:border-[#2d5a4a] focus:outline-none"
                       />
-                    </div>
-                    <div>
+                      </div>
+                      <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Price per Bottle (₦)</label>
                       <input
                         type="number"
@@ -1777,7 +2047,7 @@ export default function AdminPage() {
                         onChange={(e) => setInvoiceForm({ ...invoiceForm, price_per_bottle: parseInt(e.target.value) || 0 })}
                         className="w-full border-2 border-gray-300 rounded-lg py-2 px-4 focus:border-[#2d5a4a] focus:outline-none"
                       />
-                    </div>
+                      </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Fee (₦)</label>
                       <input
@@ -1829,13 +2099,13 @@ export default function AdminPage() {
                       <div className="flex justify-between text-green-600">
                         <span>Discount</span>
                         <span>-₦{invoiceForm.discount.toLocaleString()}</span>
-                      </div>
+                    </div>
                     )}
                     <div className="flex justify-between border-t pt-2 font-bold text-lg text-[#2d5a4a]">
                       <span>Total</span>
                       <span>₦{((invoiceForm.quantity * invoiceForm.price_per_bottle) + invoiceForm.delivery_fee - invoiceForm.discount).toLocaleString()}</span>
-                    </div>
-                  </div>
+                        </div>
+                      </div>
                 </div>
 
                 {/* Action Buttons */}
@@ -1855,9 +2125,9 @@ export default function AdminPage() {
                   </button>
                 </div>
               </div>
-            </div>
-          </div>
-        )}
+                        </div>
+                      </div>
+                    )}
 
         {/* Invoice Details Modal */}
         {showInvoiceDetails && selectedInvoice && (
@@ -1867,15 +2137,15 @@ export default function AdminPage() {
                 <div>
                   <h2 className="text-xl font-bold text-[#2d5a4a]">Invoice Details</h2>
                   <p className="text-sm text-gray-500">{selectedInvoice.invoice_number}</p>
-                </div>
+                  </div>
                 <button
                   onClick={() => setShowInvoiceDetails(false)}
                   className="text-gray-500 hover:text-gray-700 text-2xl w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100"
                 >
                   ×
                 </button>
-              </div>
-              
+                </div>
+
               <div className="p-6 space-y-6">
                 {/* Customer Information */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1912,7 +2182,7 @@ export default function AdminPage() {
                         'bg-red-100 text-red-800'
                       }`}>
                         {selectedInvoice.status}
-                      </span>
+                    </span>
                     </div>
                   </div>
                 </div>
@@ -1972,7 +2242,7 @@ export default function AdminPage() {
                     </>
                   )}
                   {selectedInvoice.status === 'sent' && (
-                    <button
+                      <button
                       onClick={() => updateInvoiceStatus(selectedInvoice.id, 'paid')}
                       className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition font-medium"
                     >
@@ -1998,8 +2268,310 @@ export default function AdminPage() {
                       className="bg-red-100 text-red-700 px-4 py-2 rounded-lg hover:bg-red-200 transition font-medium"
                     >
                       🗑️ Delete
-                    </button>
-                  )}
+                      </button>
+                    )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Create Discount Code Modal */}
+        {showCreateDiscountCode && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+                <div>
+                  <h2 className="text-xl font-bold text-[#2d5a4a]">Create Discount Code</h2>
+                  <p className="text-sm text-gray-500">Create a new discount code for customers</p>
+                </div>
+                <button
+                  onClick={() => setShowCreateDiscountCode(false)}
+                  className="text-gray-500 hover:text-gray-700 text-2xl w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100"
+                >
+                  ×
+                </button>
+              </div>
+              
+              <div className="p-6 space-y-6">
+                {/* Code Details */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase">Code Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Code *</label>
+                      <input
+                        type="text"
+                        value={discountCodeForm.code}
+                        onChange={(e) => setDiscountCodeForm({ ...discountCodeForm, code: e.target.value.toUpperCase() })}
+                        placeholder="WELCOME10"
+                        className="w-full border-2 border-gray-300 rounded-lg py-2 px-4 focus:border-[#2d5a4a] focus:outline-none font-mono"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Code will be converted to uppercase</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Type *</label>
+                      <select
+                        value={discountCodeForm.type}
+                        onChange={(e) => setDiscountCodeForm({ ...discountCodeForm, type: e.target.value as 'percentage' | 'fixed' })}
+                        className="w-full border-2 border-gray-300 rounded-lg py-2 px-4 focus:border-[#2d5a4a] focus:outline-none"
+                      >
+                        <option value="percentage">Percentage (%)</option>
+                        <option value="fixed">Fixed Amount (₦)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Value * {discountCodeForm.type === 'percentage' ? '(0-100%)' : '(₦)'}
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max={discountCodeForm.type === 'percentage' ? 100 : undefined}
+                        step={discountCodeForm.type === 'percentage' ? 1 : 100}
+                        value={discountCodeForm.value}
+                        onChange={(e) => setDiscountCodeForm({ ...discountCodeForm, value: parseFloat(e.target.value) || 0 })}
+                        className="w-full border-2 border-gray-300 rounded-lg py-2 px-4 focus:border-[#2d5a4a] focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Description (optional)</label>
+                      <input
+                        type="text"
+                        value={discountCodeForm.description}
+                        onChange={(e) => setDiscountCodeForm({ ...discountCodeForm, description: e.target.value })}
+                        placeholder="Welcome discount for new customers"
+                        className="w-full border-2 border-gray-300 rounded-lg py-2 px-4 focus:border-[#2d5a4a] focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Restrictions */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase">Restrictions (Optional)</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Minimum Order Amount (₦)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="100"
+                        value={discountCodeForm.min_order_amount}
+                        onChange={(e) => setDiscountCodeForm({ ...discountCodeForm, min_order_amount: e.target.value })}
+                        placeholder="5000"
+                        className="w-full border-2 border-gray-300 rounded-lg py-2 px-4 focus:border-[#2d5a4a] focus:outline-none"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Leave empty for no minimum</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Maximum Uses</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={discountCodeForm.max_uses}
+                        onChange={(e) => setDiscountCodeForm({ ...discountCodeForm, max_uses: e.target.value })}
+                        placeholder="100"
+                        className="w-full border-2 border-gray-300 rounded-lg py-2 px-4 focus:border-[#2d5a4a] focus:outline-none"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Leave empty for unlimited uses</p>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date (optional)</label>
+                      <input
+                        type="date"
+                        value={discountCodeForm.expires_at}
+                        onChange={(e) => setDiscountCodeForm({ ...discountCodeForm, expires_at: e.target.value })}
+                        className="w-full border-2 border-gray-300 rounded-lg py-2 px-4 focus:border-[#2d5a4a] focus:outline-none"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Leave empty for no expiration</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Preview */}
+                <div className="bg-[#f0f7f4] rounded-xl p-4">
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">Preview</h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Code:</span>
+                      <span className="font-mono font-semibold text-[#2d5a4a]">{discountCodeForm.code || 'CODE'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Discount:</span>
+                      <span className="font-medium">
+                        {discountCodeForm.type === 'percentage' 
+                          ? `${discountCodeForm.value}% off` 
+                          : `₦${discountCodeForm.value.toLocaleString()} off`}
+                      </span>
+                    </div>
+                    {discountCodeForm.min_order_amount && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Min Order:</span>
+                        <span className="font-medium">₦{parseFloat(discountCodeForm.min_order_amount).toLocaleString()}</span>
+                      </div>
+                    )}
+                    {discountCodeForm.max_uses && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Max Uses:</span>
+                        <span className="font-medium">{discountCodeForm.max_uses}</span>
+                      </div>
+                    )}
+                    {discountCodeForm.expires_at && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Expires:</span>
+                        <span className="font-medium">{new Date(discountCodeForm.expires_at).toLocaleDateString()}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-4 border-t">
+                  <button
+                    onClick={() => setShowCreateDiscountCode(false)}
+                    className="flex-1 bg-gray-100 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-200 transition font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={createNewDiscountCode}
+                    disabled={creatingDiscountCode}
+                    className="flex-1 bg-[#2d5a4a] text-white px-4 py-3 rounded-lg hover:bg-[#1e4035] transition font-medium disabled:opacity-50"
+                  >
+                    {creatingDiscountCode ? 'Creating...' : 'Create Discount Code'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Discount Code Details Modal */}
+        {showDiscountCodeDetails && selectedDiscountCode && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+                <div>
+                  <h2 className="text-xl font-bold text-[#2d5a4a]">Discount Code Details</h2>
+                  <p className="text-sm text-gray-500 font-mono">{selectedDiscountCode.code}</p>
+                </div>
+                <button
+                  onClick={() => setShowDiscountCodeDetails(false)}
+                  className="text-gray-500 hover:text-gray-700 text-2xl w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100"
+                >
+                  ×
+                </button>
+              </div>
+              
+              <div className="p-6 space-y-6">
+                {/* Code Info */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">Code Details</h3>
+                    <div className="space-y-2 text-sm">
+                      <div>
+                        <span className="text-gray-500">Type:</span>
+                        <span className="ml-2 font-medium">
+                          {selectedDiscountCode.type === 'percentage' ? 'Percentage' : 'Fixed Amount'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Value:</span>
+                        <span className="ml-2 font-medium text-[#2d5a4a]">
+                          {selectedDiscountCode.type === 'percentage' 
+                            ? `${selectedDiscountCode.value}%` 
+                            : `₦${selectedDiscountCode.value.toLocaleString()}`}
+                        </span>
+                      </div>
+                      {selectedDiscountCode.description && (
+                        <div>
+                          <span className="text-gray-500">Description:</span>
+                          <p className="mt-1 text-gray-700">{selectedDiscountCode.description}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">Usage Stats</h3>
+                    <div className="space-y-2 text-sm">
+                      <div>
+                        <span className="text-gray-500">Used:</span>
+                        <span className="ml-2 font-medium">{selectedDiscountCode.used_count} times</span>
+                      </div>
+                      {selectedDiscountCode.max_uses && (
+                        <div>
+                          <span className="text-gray-500">Limit:</span>
+                          <span className="ml-2 font-medium">{selectedDiscountCode.max_uses} uses</span>
+                        </div>
+                      )}
+                      <div>
+                        <span className="text-gray-500">Status:</span>
+                        <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
+                          selectedDiscountCode.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {selectedDiscountCode.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Restrictions */}
+                {(selectedDiscountCode.min_order_amount || selectedDiscountCode.max_uses || selectedDiscountCode.expires_at) && (
+                  <div className="bg-amber-50 rounded-xl p-4">
+                    <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">Restrictions</h3>
+                    <div className="space-y-2 text-sm">
+                      {selectedDiscountCode.min_order_amount && (
+                        <div>
+                          <span className="text-gray-600">Minimum Order:</span>
+                          <span className="ml-2 font-medium">₦{selectedDiscountCode.min_order_amount.toLocaleString()}</span>
+                        </div>
+                      )}
+                      {selectedDiscountCode.max_uses && (
+                        <div>
+                          <span className="text-gray-600">Maximum Uses:</span>
+                          <span className="ml-2 font-medium">{selectedDiscountCode.max_uses}</span>
+                        </div>
+                      )}
+                      {selectedDiscountCode.expires_at && (
+                        <div>
+                          <span className="text-gray-600">Expires:</span>
+                          <span className="ml-2 font-medium">
+                            {new Date(selectedDiscountCode.expires_at).toLocaleDateString()}
+                            {new Date(selectedDiscountCode.expires_at) < new Date() && (
+                              <span className="ml-2 text-red-600">(Expired)</span>
+                            )}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex flex-wrap gap-3 pt-4 border-t">
+                  <button
+                    onClick={() => {
+                      updateDiscountCodeStatus(selectedDiscountCode.id, !selectedDiscountCode.is_active)
+                      setShowDiscountCodeDetails(false)
+                    }}
+                    className={`flex-1 sm:flex-none px-6 py-2.5 rounded-lg font-medium transition ${
+                      selectedDiscountCode.is_active
+                        ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+                        : 'bg-green-100 text-green-700 hover:bg-green-200'
+                    }`}
+                  >
+                    {selectedDiscountCode.is_active ? '⏸️ Deactivate' : '▶️ Activate'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      deleteDiscountCode(selectedDiscountCode.id)
+                    }}
+                    className="bg-red-100 text-red-700 px-6 py-2.5 rounded-lg hover:bg-red-200 transition font-medium"
+                  >
+                    🗑️ Delete
+                  </button>
                 </div>
               </div>
             </div>
