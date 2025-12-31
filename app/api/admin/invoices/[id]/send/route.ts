@@ -66,7 +66,7 @@ export async function POST(
   try {
     const { id } = await params
     const invoiceId = parseInt(id)
-    const invoice = getInvoiceById(invoiceId)
+    const invoice = await getInvoiceById(invoiceId)
 
     if (!invoice) {
       return NextResponse.json(
@@ -86,7 +86,7 @@ export async function POST(
       await sendWhatsAppMessage(invoice.phone, message)
       
       // Update invoice status to 'sent'
-      updateInvoiceStatus(invoiceId, 'sent')
+      await updateInvoiceStatus(invoiceId, 'sent')
       
       return NextResponse.json({ 
         success: true, 
@@ -96,7 +96,7 @@ export async function POST(
       console.error('WhatsApp send error:', whatsappError)
       
       // Still mark as sent if WhatsApp fails but return a warning
-      updateInvoiceStatus(invoiceId, 'sent')
+      await updateInvoiceStatus(invoiceId, 'sent')
       
       return NextResponse.json({ 
         success: true, 

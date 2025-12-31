@@ -13,12 +13,12 @@ export async function GET(request: Request) {
 
     if (exportData) {
       // Return orders for CSV export
-      const orders = getOrdersForExport(startDate || undefined, endDate || undefined)
+      const orders = await getOrdersForExport(startDate || undefined, endDate || undefined)
       return NextResponse.json({ orders })
     }
 
     // Get statistics
-    const stats = getSalesStats(startDate || undefined, endDate || undefined)
+    const stats = await getSalesStats(startDate || undefined, endDate || undefined)
 
     // Get sales by date - use last 30 days if no range provided
     let salesByDate: any[] = []
@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     const defaultEndDate = now.toISOString().split('T')[0]
     const defaultStartDate = new Date(now.setDate(now.getDate() - 30)).toISOString().split('T')[0]
     
-    salesByDate = getSalesByDate(
+    salesByDate = await getSalesByDate(
       startDate || defaultStartDate,
       endDate || defaultEndDate,
       groupBy || 'day'

@@ -67,5 +67,9 @@
     "admin_phone": "",
     "admin_email": ""
   },
-  "nextOrderId": 4
+  "nextOrderId": 4,
+  "invoices": [],
+  "discount_codes": [],
+  "nextInvoiceId": 1,
+  "nextDiscountCodeId": 1
 }

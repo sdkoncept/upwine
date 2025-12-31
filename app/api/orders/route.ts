@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createOrder, getOrders, useDiscountCode } from '@/lib/db'
+import { createOrder, getOrders, markDiscountCodeUsed } from '@/lib/db'
 import { sendWhatsAppMessage, formatOrderConfirmation, formatAdminNotification } from '@/lib/whatsapp'
 import { getSetting } from '@/lib/db'
 
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
       : (address?.trim() || null)
 
     // Create order
-    const { orderNumber, totalAmount } = createOrder({
+    const { orderNumber, totalAmount } = await createOrder({
       customer_name: customer_name.trim(),
       phone: phone.trim(),
       email: email?.trim() || undefined,
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
     // Mark discount code as used if provided
     if (discount_code && discount_code.trim()) {
       try {
-        useDiscountCode(discount_code.trim())
+        await markDiscountCodeUsed(discount_code.trim())
       } catch (error) {
         console.error('Error marking discount code as used:', error)
         // Don't fail the order if discount code tracking fails
@@ -120,7 +120,7 @@ export async function POST(request: Request) {
     // Send WhatsApp notification to admin
     console.log('[Order API] Sending admin WhatsApp notification...');
     try {
-      const adminPhone = getSetting('admin_phone')
+      const adminPhone = await getSetting('admin_phone')
       console.log('[Order API] Admin phone from DB:', adminPhone);
       if (adminPhone) {
         const adminMessage = formatAdminNotification(order)
@@ -154,7 +154,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
     
-    const orders = getOrders(status || undefined)
+    const orders = await getOrders(status || undefined)
     return NextResponse.json(orders)
   } catch (error) {
     console.error('Error fetching orders:', error)

@@ -9,7 +9,7 @@ export async function GET(request: Request) {
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
 
-    const orders = getOrdersForExport(startDate || undefined, endDate || undefined)
+    const orders = await getOrdersForExport(startDate || undefined, endDate || undefined)
 
     // Convert to CSV
     const headers = [
