@@ -30,6 +30,7 @@ export default function MobileNav() {
     { href: '/order', label: 'Order Now', icon: '🍷' },
     { href: '/about', label: 'About', icon: 'ℹ️' },
     { href: '/contact', label: 'Contact', icon: '📞' },
+    { href: '/admin/login', label: 'Admin', icon: '🔐' },
   ]
 
   return (

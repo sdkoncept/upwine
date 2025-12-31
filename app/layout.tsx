@@ -43,6 +43,9 @@ export default function RootLayout({
                 <Link href="/contact" className="text-[#5a8a7a] hover:text-[#2d5a4a] transition-colors font-medium">
                   Contact
                 </Link>
+                <Link href="/admin/login" className="text-[#5a8a7a] hover:text-[#2d5a4a] transition-colors font-medium">
+                  Admin
+                </Link>
                 <Link 
                   href="/order" 
                   className="bg-[#2d5a4a] text-white px-6 py-2.5 rounded-full font-semibold hover:bg-[#1e4035] transition-all duration-300 shadow-md hover:shadow-lg"
