@@ -30,7 +30,7 @@ export default function RootLayout({
                 <span className="text-3xl">🌴</span>
                 <span>Upwyne</span>
               </Link>
-              <div className="hidden md:flex items-center space-x-8">
+              <div className="hidden md:flex items-center space-x-6">
                 <Link href="/" className="text-[#5a8a7a] hover:text-[#2d5a4a] transition-colors font-medium">
                   Home
                 </Link>
@@ -40,11 +40,17 @@ export default function RootLayout({
                 <Link href="/track" className="text-[#5a8a7a] hover:text-[#2d5a4a] transition-colors font-medium">
                   Track Order
                 </Link>
+                <Link href="/lookup" className="text-[#5a8a7a] hover:text-[#2d5a4a] transition-colors font-medium">
+                  Invoice/Receipt
+                </Link>
                 <Link href="/about" className="text-[#5a8a7a] hover:text-[#2d5a4a] transition-colors font-medium">
                   About
                 </Link>
                 <Link href="/contact" className="text-[#5a8a7a] hover:text-[#2d5a4a] transition-colors font-medium">
                   Contact
+                </Link>
+                <Link href="/admin" className="text-[#5a8a7a] hover:text-[#2d5a4a] transition-colors font-medium">
+                  Admin
                 </Link>
                 <Link 
                   href="/order" 
@@ -92,6 +98,11 @@ export default function RootLayout({
                   <li>
                     <Link href="/track" className="text-[#a8d4c0] hover:text-white transition-colors">
                       Track Order
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/lookup" className="text-[#a8d4c0] hover:text-white transition-colors">
+                      Invoice/Receipt
                     </Link>
                   </li>
                   <li>
