@@ -92,7 +92,7 @@ export default function AdminPage() {
     online_revenue: 0,
   })
   const [salesByDate, setSalesByDate] = useState<SalesByDate[]>([])
-  const [dateFilter, setDateFilter] = useState<'all' | 'day' | 'week' | 'month' | 'year' | 'custom'>('week')
+  const [dateFilter, setDateFilter] = useState<'all' | 'day' | 'week' | 'month' | 'year' | 'custom'>('month')
   const [customStartDate, setCustomStartDate] = useState('')
   const [customEndDate, setCustomEndDate] = useState('')
   const [groupBy, setGroupBy] = useState<'day' | 'week' | 'month' | 'year'>('day')
@@ -1072,59 +1072,67 @@ export default function AdminPage() {
             </div>
 
             {/* Sales Chart */}
-            {salesByDate.length > 0 && (
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                  <span>📈</span> Revenue Chart
-                </h3>
-                <div className="h-64 flex items-end gap-2 overflow-x-auto pb-4">
-                  {salesByDate.map((item, index) => {
-                    const maxRevenue = Math.max(...salesByDate.map(s => s.revenue), 1)
-                    const heightPercent = (item.revenue / maxRevenue) * 100
-                    return (
-                      <div key={index} className="flex flex-col items-center min-w-[60px] group">
-                        <div className="relative flex flex-col items-center flex-1 w-full">
-                          {/* Tooltip */}
-                          <div className="absolute -top-16 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                            <div className="font-semibold">₦{item.revenue.toLocaleString()}</div>
-                            <div className="text-gray-300">{item.orders_count} orders</div>
-                            <div className="text-gray-300">{item.bottles_sold} bottles</div>
+            <div className="bg-white rounded-xl shadow-md p-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                <span>📈</span> Revenue Chart
+              </h3>
+              {salesByDate.length > 0 ? (
+                <>
+                  <div className="h-64 flex items-end gap-2 overflow-x-auto pb-4">
+                    {salesByDate.map((item, index) => {
+                      const maxRevenue = Math.max(...salesByDate.map(s => s.revenue), 1)
+                      const heightPercent = (item.revenue / maxRevenue) * 100
+                      return (
+                        <div key={index} className="flex flex-col items-center min-w-[60px] group">
+                          <div className="relative flex flex-col items-center flex-1 w-full">
+                            {/* Tooltip */}
+                            <div className="absolute -top-16 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                              <div className="font-semibold">₦{item.revenue.toLocaleString()}</div>
+                              <div className="text-gray-300">{item.orders_count} orders</div>
+                              <div className="text-gray-300">{item.bottles_sold} bottles</div>
+                            </div>
+                            {/* Bar */}
+                            <div 
+                              className="w-10 bg-gradient-to-t from-[#2d5a4a] to-[#4a7c6a] rounded-t-lg transition-all duration-500 hover:from-[#1e4035] hover:to-[#3d6a5a] cursor-pointer"
+                              style={{ height: `${Math.max(heightPercent, 5)}%` }}
+                            >
+                              <div className="w-full h-2 bg-white/20 rounded-t-lg"></div>
+                            </div>
                           </div>
-                          {/* Bar */}
-                          <div 
-                            className="w-10 bg-gradient-to-t from-[#2d5a4a] to-[#4a7c6a] rounded-t-lg transition-all duration-500 hover:from-[#1e4035] hover:to-[#3d6a5a] cursor-pointer"
-                            style={{ height: `${Math.max(heightPercent, 5)}%` }}
-                          >
-                            <div className="w-full h-2 bg-white/20 rounded-t-lg"></div>
+                          {/* Label */}
+                          <div className="mt-2 text-xs text-gray-500 text-center">
+                            {formatDate(item.date)}
                           </div>
                         </div>
-                        {/* Label */}
-                        <div className="mt-2 text-xs text-gray-500 text-center">
-                          {formatDate(item.date)}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-                {/* Legend */}
-                <div className="flex items-center justify-center gap-6 mt-4 pt-4 border-t border-gray-100">
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-gradient-to-t from-[#2d5a4a] to-[#4a7c6a]"></div>
-                    <span className="text-sm text-gray-600">Revenue</span>
+                      )
+                    })}
                   </div>
-                  <div className="text-sm text-gray-500">
-                    Hover over bars for details
+                  {/* Legend */}
+                  <div className="flex items-center justify-center gap-6 mt-4 pt-4 border-t border-gray-100">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded bg-gradient-to-t from-[#2d5a4a] to-[#4a7c6a]"></div>
+                      <span className="text-sm text-gray-600">Revenue</span>
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      Hover over bars for details
+                    </div>
                   </div>
+                </>
+              ) : (
+                <div className="h-64 flex flex-col items-center justify-center text-gray-400">
+                  <div className="text-6xl mb-4">📊</div>
+                  <p className="text-lg font-medium">No sales data yet</p>
+                  <p className="text-sm">Chart will appear when you have orders</p>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Bottles Sold Chart */}
-            {salesByDate.length > 0 && (
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                  <span>🍷</span> Bottles Sold Chart
-                </h3>
+            <div className="bg-white rounded-xl shadow-md p-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                <span>🍷</span> Bottles Sold Chart
+              </h3>
+              {salesByDate.length > 0 ? (
                 <div className="h-48 flex items-end gap-2 overflow-x-auto pb-4">
                   {salesByDate.map((item, index) => {
                     const maxBottles = Math.max(...salesByDate.map(s => s.bottles_sold), 1)
@@ -1152,8 +1160,12 @@ export default function AdminPage() {
                     )
                   })}
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="h-48 flex items-center justify-center text-gray-400">
+                  <p>No sales data to display</p>
+                </div>
+              )}
+            </div>
 
             {/* Sales Table */}
             {salesByDate.length > 0 && (

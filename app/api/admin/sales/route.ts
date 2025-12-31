@@ -20,15 +20,17 @@ export async function GET(request: Request) {
     // Get statistics
     const stats = getSalesStats(startDate || undefined, endDate || undefined)
 
-    // Get sales by date if date range is provided
+    // Get sales by date - use last 30 days if no range provided
     let salesByDate: any[] = []
-    if (startDate && endDate) {
-      salesByDate = getSalesByDate(
-        startDate,
-        endDate,
-        groupBy || 'day'
-      )
-    }
+    const now = new Date()
+    const defaultEndDate = now.toISOString().split('T')[0]
+    const defaultStartDate = new Date(now.setDate(now.getDate() - 30)).toISOString().split('T')[0]
+    
+    salesByDate = getSalesByDate(
+      startDate || defaultStartDate,
+      endDate || defaultEndDate,
+      groupBy || 'day'
+    )
 
     return NextResponse.json({
       stats: {
