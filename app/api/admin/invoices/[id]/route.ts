@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { getInvoiceById, updateInvoice, updateInvoiceStatus, deleteInvoice } from '@/lib/db'
-import { sendWhatsAppMessage } from '@/lib/whatsapp'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,7 +9,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const invoice = getInvoiceById(parseInt(id))
+    const invoice = await getInvoiceById(parseInt(id))
     
     if (!invoice) {
       return NextResponse.json(
@@ -38,7 +37,7 @@ export async function PATCH(
     const body = await request.json()
     
     const invoiceId = parseInt(id)
-    const invoice = getInvoiceById(invoiceId)
+    const invoice = await getInvoiceById(invoiceId)
 
     if (!invoice) {
       return NextResponse.json(
@@ -49,12 +48,12 @@ export async function PATCH(
 
     // If only status is being updated
     if (body.status && Object.keys(body).length === 1) {
-      const updated = updateInvoiceStatus(invoiceId, body.status)
+      const updated = await updateInvoiceStatus(invoiceId, body.status)
       return NextResponse.json({ success: true, invoice: updated })
     }
 
     // Update the invoice
-    const updated = updateInvoice(invoiceId, body)
+    const updated = await updateInvoice(invoiceId, body)
     return NextResponse.json({ success: true, invoice: updated })
   } catch (error) {
     console.error('Error updating invoice:', error)
@@ -71,7 +70,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    const deleted = deleteInvoice(parseInt(id))
+    const deleted = await deleteInvoice(parseInt(id))
     
     if (!deleted) {
       return NextResponse.json(

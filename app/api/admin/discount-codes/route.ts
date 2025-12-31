@@ -8,7 +8,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const activeOnly = searchParams.get('activeOnly') === 'true'
     
-    const codes = getDiscountCodes(activeOnly)
+    const codes = await getDiscountCodes(activeOnly)
     return NextResponse.json(codes)
   } catch (error) {
     console.error('Error fetching discount codes:', error)
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const discountCode = createDiscountCode({
+    const discountCode = await createDiscountCode({
       code: code.trim(),
       type,
       value: parseFloat(value),

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { verifyPaystackPayment } from '@/lib/paystack'
 import { getOrderByPaystackReference, updateOrderPayment } from '@/lib/db'
 import { sendReceiptToCustomer } from '@/lib/receipt'
-import { sendWhatsAppMessage, formatAdminNotification } from '@/lib/whatsapp'
+import { sendWhatsAppMessage } from '@/lib/whatsapp'
 import { getSetting } from '@/lib/db'
 
 export async function POST(request: Request) {
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     }
 
     // Find order by Paystack reference
-    const order = getOrderByPaystackReference(reference) as any
+    const order = await getOrderByPaystackReference(reference) as any
 
     if (!order) {
       return NextResponse.json(
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
     }
 
     // Update order payment status
-    updateOrderPayment(order.order_number, 'paid', reference)
+    await updateOrderPayment(order.order_number, 'paid', reference)
 
     // Send receipt to customer
     try {
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
 
     // Notify admin
     try {
-      const adminPhone = getSetting('admin_phone')
+      const adminPhone = await getSetting('admin_phone')
       if (adminPhone) {
         const adminMessage = `✅ Payment Successful!\n\n` +
           `Order #: ${order.order_number}\n` +

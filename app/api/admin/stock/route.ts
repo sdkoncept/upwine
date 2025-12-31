@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
-import { resetWeeklyStock, getCurrentStock, updateSetting } from '@/lib/db'
+import { resetWeeklyStock, getCurrentStock } from '@/lib/db'
 
 export async function GET() {
   try {
-    const stock = getCurrentStock()
+    const stock = await getCurrentStock()
     return NextResponse.json(stock)
   } catch (error) {
     console.error('Error fetching stock:', error)
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
       )
     }
 
-    resetWeeklyStock(bottles)
+    await resetWeeklyStock(bottles)
     
     return NextResponse.json({ success: true, bottles })
   } catch (error) {

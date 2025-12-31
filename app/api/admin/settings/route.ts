@@ -6,13 +6,13 @@ export const dynamic = 'force-dynamic'
 export async function GET() {
   try {
     const settings = {
-      price_per_bottle: getSetting('price_per_bottle') || '2000',
-      weekly_stock: getSetting('weekly_stock') || '100',
-      pickup_address: getSetting('pickup_address') || '24 Tony Anenih Avenue, G.R.A, Benin City',
-      delivery_fee_min: getSetting('delivery_fee_min') || '800',
-      delivery_fee_max: getSetting('delivery_fee_max') || '2200',
-      admin_phone: getSetting('admin_phone') || '',
-      admin_email: getSetting('admin_email') || '',
+      price_per_bottle: (await getSetting('price_per_bottle')) || '2000',
+      weekly_stock: (await getSetting('weekly_stock')) || '100',
+      pickup_address: (await getSetting('pickup_address')) || '24 Tony Anenih Avenue, G.R.A, Benin City',
+      delivery_fee_min: (await getSetting('delivery_fee_min')) || '800',
+      delivery_fee_max: (await getSetting('delivery_fee_max')) || '2200',
+      admin_phone: (await getSetting('admin_phone')) || '',
+      admin_email: (await getSetting('admin_email')) || '',
     }
 
     return NextResponse.json(settings)
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
 
     for (const key of allowedKeys) {
       if (body[key] !== undefined) {
-        updateSetting(key, body[key])
+        await updateSetting(key, body[key])
       }
     }
 

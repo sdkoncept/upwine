@@ -80,7 +80,7 @@ export function generateReceiptText(order: ReceiptData): string {
  * Send receipt to customer via WhatsApp
  */
 export async function sendReceiptToCustomer(orderNumber: string): Promise<void> {
-  const order = getOrder(orderNumber) as ReceiptData | undefined
+  const order = (await getOrder(orderNumber)) as ReceiptData | null
   
   if (!order) {
     throw new Error('Order not found')

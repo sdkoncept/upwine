@@ -9,7 +9,7 @@ export async function GET(
 ) {
   try {
     const { invoiceNumber } = await params
-    const invoice = getInvoice(invoiceNumber)
+    const invoice = await getInvoice(invoiceNumber)
 
     if (!invoice) {
       return NextResponse.json(

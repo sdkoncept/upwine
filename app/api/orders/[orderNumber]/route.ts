@@ -9,7 +9,7 @@ export async function GET(
 ) {
   try {
     const { orderNumber } = await params
-    const order = getOrder(orderNumber)
+    const order = await getOrder(orderNumber)
     
     if (!order) {
       return NextResponse.json(
