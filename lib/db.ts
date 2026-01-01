@@ -84,12 +84,15 @@ export async function initDatabase() {
   try {
     // Ensure current week stock exists
     const currentWeek = getWeekStartDate()
-    const { data: existingStock } = await supabase
+    const { data: existingStock, error } = await supabase
       .from('stock')
       .select('*')
       .eq('week_start_date', currentWeek)
       .single()
-      .catch(() => ({ data: null }))
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error checking stock:', error)
+    }
 
     if (!existingStock) {
       await supabase.from('stock').insert({
