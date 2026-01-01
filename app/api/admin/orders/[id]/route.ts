@@ -1,22 +1,8 @@
 import { NextResponse } from 'next/server'
-import { updateOrderStatus, getSetting, getOrder, getCurrentStock, resetWeeklyStock } from '@/lib/db'
-import fs from 'fs'
-import path from 'path'
+import { updateOrderStatus, getOrderById, updateOrderPayment } from '@/lib/db'
+import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
-
-const dbPath = path.join(process.cwd(), 'upwine-data.json')
-
-function loadDatabase() {
-  if (fs.existsSync(dbPath)) {
-    return JSON.parse(fs.readFileSync(dbPath, 'utf-8'))
-  }
-  return { orders: [], stock: [], settings: {}, nextOrderId: 1 }
-}
-
-function saveDatabase(db: any) {
-  fs.writeFileSync(dbPath, JSON.stringify(db, null, 2))
-}
 
 function getWeekStartDate(): string {
   const now = new Date()
@@ -36,10 +22,9 @@ export async function PATCH(
     const { status, payment_status } = body
 
     const orderId = parseInt(id)
-    const db = loadDatabase()
 
     // Get the current order
-    const order = db.orders.find((o: any) => o.id === orderId)
+    const order = await getOrderById(orderId)
 
     if (!order) {
       return NextResponse.json(
@@ -48,10 +33,11 @@ export async function PATCH(
       )
     }
 
+    const updates: any = { updated_at: new Date().toISOString() }
+
     // Update payment status if provided
     if (payment_status) {
-      order.payment_status = payment_status
-      order.updated_at = new Date().toISOString()
+      updates.payment_status = payment_status
     }
 
     // Update order status if provided
@@ -59,18 +45,33 @@ export async function PATCH(
       // If cancelling an order that wasn't already cancelled, restore stock
       if (status === 'cancelled' && order.status !== 'cancelled') {
         const currentWeek = getWeekStartDate()
-        const weekStock = db.stock.find((s: any) => s.week_start_date === currentWeek)
-        if (weekStock) {
-          weekStock.sold_bottles -= order.quantity
-          weekStock.available_bottles += order.quantity
+        if (supabase) {
+          const { data: weekStock } = await supabase
+            .from('stock')
+            .select('*')
+            .eq('week_start_date', currentWeek)
+            .single()
+
+          if (weekStock) {
+            await supabase
+              .from('stock')
+              .update({
+                sold_bottles: weekStock.sold_bottles - order.quantity,
+                available_bottles: weekStock.available_bottles + order.quantity,
+              })
+              .eq('week_start_date', currentWeek)
+          }
         }
       }
 
-      order.status = status
-      order.updated_at = new Date().toISOString()
+      updates.status = status
     }
 
-    saveDatabase(db)
+    await updateOrderStatus(orderId, updates.status || order.status)
+    
+    if (updates.payment_status) {
+      await updateOrderPayment(order.order_number, updates.payment_status)
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {

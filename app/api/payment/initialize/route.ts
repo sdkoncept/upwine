@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     }
 
     // Get order details
-    const order = getOrder(order_number) as any
+    const order = await getOrder(order_number)
     if (!order) {
       return NextResponse.json(
         { error: 'Order not found' },
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     })
 
     // Update order with Paystack reference
-    updateOrderPayment(order_number, 'pending', paystackResponse.data.reference)
+    await updateOrderPayment(order_number, 'pending', paystackResponse.data.reference)
 
     return NextResponse.json({
       success: true,

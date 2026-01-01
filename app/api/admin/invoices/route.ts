@@ -8,7 +8,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
     
-    const invoices = getInvoices(status || undefined)
+    const invoices = await getInvoices(status || undefined)
     return NextResponse.json(invoices)
   } catch (error) {
     console.error('Error fetching invoices:', error)
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const invoice = createInvoice({
+    const invoice = await createInvoice({
       customer_name: customer_name.trim(),
       phone: phone.trim(),
       email: email?.trim(),

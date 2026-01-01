@@ -9,7 +9,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const code = getDiscountCodeById(parseInt(id))
+    const code = await getDiscountCodeById(parseInt(id))
     
     if (!code) {
       return NextResponse.json(
@@ -37,7 +37,7 @@ export async function PATCH(
     const body = await request.json()
     
     const codeId = parseInt(id)
-    const code = getDiscountCodeById(codeId)
+    const code = await getDiscountCodeById(codeId)
 
     if (!code) {
       return NextResponse.json(
@@ -73,7 +73,7 @@ export async function PATCH(
       body.code = body.code.toUpperCase()
     }
 
-    const updated = updateDiscountCode(codeId, body)
+    const updated = await updateDiscountCode(codeId, body)
     return NextResponse.json({ success: true, discount_code: updated })
   } catch (error) {
     console.error('Error updating discount code:', error)
@@ -90,7 +90,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    const deleted = deleteDiscountCode(parseInt(id))
+    const deleted = await deleteDiscountCode(parseInt(id))
     
     if (!deleted) {
       return NextResponse.json(

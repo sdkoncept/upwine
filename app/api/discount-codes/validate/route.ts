@@ -22,7 +22,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const validation = validateDiscountCode(code.trim(), parseFloat(order_amount))
+    const validation = await validateDiscountCode(code.trim(), parseFloat(order_amount))
 
     return NextResponse.json(validation)
   } catch (error: any) {

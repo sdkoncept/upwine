@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createOrder, getOrders, useDiscountCode } from '@/lib/db'
+import { createOrder, getOrders, useDiscountCode, getDiscountCode, validateDiscountCode } from '@/lib/db'
 import { sendWhatsAppMessage, formatOrderConfirmation, formatAdminNotification } from '@/lib/whatsapp'
 import { getSetting } from '@/lib/db'
 
@@ -67,8 +67,39 @@ export async function POST(request: Request) {
       ? null 
       : (address?.trim() || null)
 
+    // Handle discount code if provided
+    let discountCodeId: number | undefined
+    let discountAmount = 0
+    
+    if (discount_code && discount_code.trim()) {
+      try {
+        const pricePerBottle = parseInt(await getSetting('price_per_bottle') || '2000')
+        const orderSubtotal = quantity * pricePerBottle
+        const orderTotal = orderSubtotal + (delivery_fee || 0)
+        
+        // Validate discount code
+        const validation = await validateDiscountCode(discount_code.trim(), orderTotal)
+        
+        if (validation.valid) {
+          const discountCodeData = await getDiscountCode(discount_code.trim())
+          if (discountCodeData) {
+            discountCodeId = discountCodeData.id
+            discountAmount = validation.discount
+            // Mark discount code as used
+            await useDiscountCode(discount_code.trim())
+          }
+        } else {
+          // Discount code invalid - don't fail order, just log
+          console.warn('Invalid discount code provided:', validation.error)
+        }
+      } catch (error) {
+        console.error('Error processing discount code:', error)
+        // Don't fail the order if discount code processing fails
+      }
+    }
+
     // Create order
-    const { orderNumber, totalAmount } = createOrder({
+    const { orderNumber, totalAmount } = await createOrder({
       customer_name: customer_name.trim(),
       phone: phone.trim(),
       email: email?.trim() || undefined,
@@ -77,17 +108,9 @@ export async function POST(request: Request) {
       delivery_type,
       delivery_fee: delivery_fee || 0,
       payment_method,
+      discount_code_id: discountCodeId,
+      discount_amount: discountAmount,
     })
-
-    // Mark discount code as used if provided
-    if (discount_code && discount_code.trim()) {
-      try {
-        useDiscountCode(discount_code.trim())
-      } catch (error) {
-        console.error('Error marking discount code as used:', error)
-        // Don't fail the order if discount code tracking fails
-      }
-    }
 
     // Get order details for notifications
     const order = {
@@ -120,7 +143,7 @@ export async function POST(request: Request) {
     // Send WhatsApp notification to admin
     console.log('[Order API] Sending admin WhatsApp notification...');
     try {
-      const adminPhone = getSetting('admin_phone')
+      const adminPhone = await getSetting('admin_phone')
       console.log('[Order API] Admin phone from DB:', adminPhone);
       if (adminPhone) {
         const adminMessage = formatAdminNotification(order)
@@ -154,7 +177,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
     
-    const orders = getOrders(status || undefined)
+    const orders = await getOrders(status || undefined)
     return NextResponse.json(orders)
   } catch (error) {
     console.error('Error fetching orders:', error)
