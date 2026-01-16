@@ -177,6 +177,10 @@ export default function AdminPage() {
   })
   const [creatingDiscountCode, setCreatingDiscountCode] = useState(false)
 
+  // WhatsApp Import State
+  const [showWhatsAppImport, setShowWhatsAppImport] = useState(false)
+  const [whatsAppText, setWhatsAppText] = useState('')
+
   useEffect(() => {
     checkAuth()
   }, [])
@@ -334,6 +338,184 @@ export default function AdminPage() {
       notes: '',
       due_date: '',
     })
+  }
+
+  // Smart Parser Function for WhatsApp Messages
+  const parseWhatsAppOrder = (text: string) => {
+    const order: any = {
+      customer_name: '',
+      phone: '',
+      email: '',
+      address: '',
+      delivery_type: 'pickup',
+      payment_method: 'cod',
+      order_items: [],
+      notes: ''
+    }
+
+    // Extract name (common patterns)
+    const namePatterns = [
+      /(?:name|customer|client)[\s:]*([^\n,]+)/i,
+      /(?:i'm|i am|my name is|this is)\s+([^\n,]+)/i,
+    ]
+    for (const pattern of namePatterns) {
+      const match = text.match(pattern)
+      if (match && match[1]) {
+        order.customer_name = match[1].trim().replace(/[^a-zA-Z\s]/g, '').trim()
+        if (order.customer_name) break
+      }
+    }
+
+    // Extract phone (Nigerian formats: 080, 070, 234, etc.)
+    const phonePatterns = [
+      /(?:phone|number|tel|contact)[\s:]*([0-9\s+\-()]{10,15})/i,
+      /(0[789][01]\d{8})/g,
+      /(234[789][01]\d{8})/g,
+      /([789][01]\d{8})/g
+    ]
+    for (const pattern of phonePatterns) {
+      const match = text.match(pattern)
+      if (match) {
+        let phone = Array.isArray(match) ? match[0] : match[1]
+        phone = phone.replace(/\D/g, '')
+        if (phone.startsWith('234')) {
+          phone = '0' + phone.slice(3)
+        } else if (phone.length === 9) {
+          phone = '0' + phone
+        }
+        if (phone.length >= 10) {
+          order.phone = phone
+          break
+        }
+      }
+    }
+
+    // Extract email
+    const emailMatch = text.match(/(?:email)[\s:]*([^\s\n]+@[^\s\n]+)/i) || 
+                       text.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/i)
+    if (emailMatch) {
+      order.email = (emailMatch[1] || emailMatch[0]).trim()
+    }
+
+    // Extract address (look for delivery-related keywords)
+    const addressPatterns = [
+      /(?:address|location|deliver to|ship to|address:)[\s:]*([^\n]+)/i,
+      /(g\.r\.a|ring road|airport road|ugbowo|aduwawa|ekewan|ikpoba hill|siluko|new lagos road|third east circular|second east circular|first east circular)[^,\n]*/i
+    ]
+    for (const pattern of addressPatterns) {
+      const match = text.match(pattern)
+      if (match) {
+        const address = match[1] ? match[1].trim() : match[0].trim()
+        if (address.length > 3) {
+          order.address = address
+          order.delivery_type = 'delivery'
+          break
+        }
+      }
+    }
+
+    // Extract items (patterns: 2x1L, 3x5L, 1x10L, 2 × 1L, etc.)
+    const itemPatterns = [
+      /(?:items?|order|bottles?|quantity)[\s:]*([^\n]+)/i,
+      /(\d+)\s*x\s*(\d+)?(L|liter)/gi,
+      /(\d+)\s*×\s*(\d+)?(L|liter)/gi
+    ]
+    
+    let itemsText = ''
+    for (const pattern of itemPatterns.slice(0, 1)) {
+      const match = text.match(pattern)
+      if (match) {
+        itemsText = match[1] || match[0]
+        break
+      }
+    }
+
+    const itemMatches = itemsText.match(/(\d+)\s*x?\s*(\d+)?(L|liter)/gi) || 
+                       text.match(/(\d+)\s*x?\s*(\d+)?(L|liter)/gi) ||
+                       []
+    
+    if (itemMatches && itemMatches.length > 0) {
+      const pricePerLiter = parseInt(settings.price_per_liter || '2000')
+      order.order_items = itemMatches.map(match => {
+        const parts = match.match(/(\d+)\s*x?\s*(\d+)?(L|liter)/i)
+        if (!parts) return null
+        const quantity = parseInt(parts[1] || '1')
+        const sizeStr = parts[2] || '1'
+        const size = `${sizeStr}L` as '1L' | '5L' | '10L'
+        if (!['1L', '5L', '10L'].includes(size)) return null
+        const liters = parseInt(size)
+        return {
+          size: size,
+          quantity: quantity,
+          price_per_unit: liters * pricePerLiter
+        }
+      }).filter(Boolean) as any[]
+    }
+
+    // Extract payment method
+    if (text.match(/cod|cash.*delivery|pay.*pickup|pay.*on.*delivery/i)) {
+      order.payment_method = 'cod'
+    } else if (text.match(/online|card|paystack|transfer|bank/i)) {
+      order.payment_method = 'online'
+    }
+
+    // Extract notes
+    const notesMatch = text.match(/(?:note|comment|message|remarks)[\s:]*([^\n]+)/i)
+    if (notesMatch) {
+      order.notes = notesMatch[1].trim()
+    }
+
+    // Calculate total quantity for invoice form
+    order.quantity = order.order_items.reduce((sum: number, item: any) => sum + item.quantity, 0) || 1
+
+    return order
+  }
+
+  // Handle WhatsApp import
+  const handleWhatsAppImport = () => {
+    if (!whatsAppText.trim()) {
+      alert('Please paste the WhatsApp message')
+      return
+    }
+    
+    const parsed = parseWhatsAppOrder(whatsAppText)
+    
+    // Validate required fields
+    if (!parsed.customer_name) {
+      alert('Could not extract customer name. Please check the message format.\n\nExample format:\nName: John Doe\nPhone: 08012345678\nItems: 2x1L, 1x5L')
+      return
+    }
+    if (!parsed.phone) {
+      alert('Could not extract phone number. Please check the message format.\n\nExample format:\nName: John Doe\nPhone: 08012345678\nItems: 2x1L, 1x5L')
+      return
+    }
+    if (!parsed.order_items || parsed.order_items.length === 0) {
+      alert('Could not extract order items. Please use format: 2x1L, 1x5L, 3x10L, etc.\n\nExample format:\nName: John Doe\nPhone: 08012345678\nItems: 2x1L, 1x5L')
+      return
+    }
+    
+    // Fill invoice form with parsed data
+    const firstItem = parsed.order_items[0]
+    const totalQuantity = parsed.order_items.reduce((sum: number, item: any) => sum + item.quantity, 0)
+    
+    setInvoiceForm({
+      customer_name: parsed.customer_name,
+      phone: parsed.phone,
+      email: parsed.email || '',
+      address: parsed.address || '',
+      quantity: totalQuantity,
+      price_per_bottle: firstItem?.price_per_unit || parseInt(settings.price_per_liter || '2000'),
+      delivery_fee: parsed.delivery_type === 'delivery' ? 2000 : 0,
+      discount: 0,
+      notes: parsed.notes || `Imported from WhatsApp\n\nOriginal message:\n${whatsAppText.substring(0, 200)}${whatsAppText.length > 200 ? '...' : ''}`,
+      due_date: '',
+    })
+    
+    setShowWhatsAppImport(false)
+    setShowCreateInvoice(true)
+    setWhatsAppText('')
+    
+    alert(`Order imported successfully!\n\nCustomer: ${parsed.customer_name}\nPhone: ${parsed.phone}\nItems: ${parsed.order_items.length} item(s)\n\nPlease review and adjust the invoice form as needed.`)
   }
 
   const createNewInvoice = async () => {
@@ -1201,6 +1383,15 @@ export default function AdminPage() {
               >
                 <span>➕</span> Create Invoice
               </button>
+              <button
+                onClick={() => {
+                  setWhatsAppText('')
+                  setShowWhatsAppImport(true)
+                }}
+                className="bg-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700 transition flex items-center gap-2"
+              >
+                📱 Import from WhatsApp
+              </button>
             </div>
 
             {/* Invoice Stats */}
@@ -2009,6 +2200,79 @@ export default function AdminPage() {
             </div>
                       </div>
                     )}
+
+        {/* WhatsApp Import Modal */}
+        {showWhatsAppImport && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+                <div>
+                  <h2 className="text-xl font-bold text-[#2d5a4a] flex items-center gap-2">
+                    📱 Import Order from WhatsApp
+                  </h2>
+                  <p className="text-sm text-gray-500">Paste WhatsApp message to auto-fill invoice form</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowWhatsAppImport(false)
+                    setWhatsAppText('')
+                  }}
+                  className="text-gray-500 hover:text-gray-700 text-2xl w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {/* Format Guide */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h3 className="font-semibold text-blue-900 mb-2">📋 Order Format Guide for WhatsApp Group:</h3>
+                  <pre className="text-xs text-blue-800 whitespace-pre-wrap font-mono bg-blue-100 p-3 rounded">
+{`Name: John Doe
+Phone: 08012345678
+Items: 2x1L, 1x5L, 3x10L
+Address: G.R.A, 123 Main St (if delivery)
+Payment: COD`}
+                  </pre>
+                  <p className="text-xs text-blue-700 mt-2">
+                    💡 The parser will extract: Name, Phone, Items, Address, and Payment method automatically.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Paste WhatsApp Message:
+                  </label>
+                  <textarea
+                    value={whatsAppText}
+                    onChange={(e) => setWhatsAppText(e.target.value)}
+                    placeholder="Paste the WhatsApp order message here..."
+                    className="w-full border-2 border-gray-300 rounded-lg p-4 h-64 focus:border-[#2d5a4a] focus:outline-none font-mono text-sm"
+                  />
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleWhatsAppImport}
+                    disabled={!whatsAppText.trim()}
+                    className="flex-1 bg-[#2d5a4a] text-white py-3 rounded-lg font-semibold hover:bg-[#1e4035] transition disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  >
+                    ✓ Parse & Import to Invoice Form
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowWhatsAppImport(false)
+                      setWhatsAppText('')
+                    }}
+                    className="px-6 py-3 border-2 border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Create Invoice Modal */}
         {showCreateInvoice && (
