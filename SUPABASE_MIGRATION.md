@@ -13,15 +13,37 @@ This guide will help you migrate from JSON file-based storage to Supabase Postgr
 Add the following to your `.env.local` file:
 
 ```env
-# Supabase Connection
+# Supabase Database Connection (Required)
 DATABASE_URL=postgresql://postgres.[project-ref]:[password]@aws-1-[region].pooler.supabase.com:6543/postgres
 
-# Optional: If you want to use Supabase REST API instead of direct PostgreSQL
+# Supabase REST API (Required for Supabase client)
 NEXT_PUBLIC_SUPABASE_URL=https://[project-ref].supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-# OR
-SUPABASE_ANON_KEY=your_anon_key
+# OR use anon key (less secure, but works):
+# SUPABASE_ANON_KEY=your_anon_key
 ```
+
+### How to Get Your Supabase Credentials
+
+1. **Project URL (NEXT_PUBLIC_SUPABASE_URL)**:
+   - Go to your Supabase project dashboard
+   - Navigate to Settings → API
+   - Copy the "Project URL" (e.g., `https://xxxxxxxxxxxxx.supabase.co`)
+
+2. **Service Role Key (SUPABASE_SERVICE_ROLE_KEY)** (Recommended):
+   - Go to Settings → API
+   - Under "Project API keys", copy the "service_role" key (keep this secret!)
+   - ⚠️ **Important**: Never expose this key in client-side code
+
+3. **Anon Key (SUPABASE_ANON_KEY)** (Alternative):
+   - Go to Settings → API
+   - Under "Project API keys", copy the "anon" key
+   - Less secure but can be used if service_role is not available
+
+4. **DATABASE_URL**:
+   - Go to Settings → Database
+   - Under "Connection string", select "Connection pooling"
+   - Copy the connection string (starts with `postgresql://`)
 
 ## Migration Steps
 
