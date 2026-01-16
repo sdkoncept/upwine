@@ -7,10 +7,11 @@ export async function GET() {
   try {
     const settings = {
       price_per_bottle: (await getSetting('price_per_bottle')) || '2000',
+      price_per_liter: (await getSetting('price_per_liter')) || '2000',
       weekly_stock: (await getSetting('weekly_stock')) || '100',
       pickup_address: (await getSetting('pickup_address')) || '24 Tony Anenih Avenue, G.R.A, Benin City',
-      delivery_fee_min: (await getSetting('delivery_fee_min')) || '800',
-      delivery_fee_max: (await getSetting('delivery_fee_max')) || '2200',
+      delivery_fee_min: (await getSetting('delivery_fee_min')) || '1600',
+      delivery_fee_max: (await getSetting('delivery_fee_max')) || '3000',
       admin_phone: (await getSetting('admin_phone')) || '',
       admin_email: (await getSetting('admin_email')) || '',
     }
@@ -31,6 +32,7 @@ export async function POST(request: Request) {
     
     const allowedKeys = [
       'price_per_bottle',
+      'price_per_liter',
       'weekly_stock',
       'pickup_address',
       'delivery_fee_min',

@@ -23,12 +23,58 @@ function CheckoutContent() {
     payment_method: 'cod',
   })
 
+  // Get cart from URL or fall back to single item format for backward compatibility
+  const cartParam = searchParams.get('cart')
   const quantity = parseInt(searchParams.get('quantity') || '1')
+  const bottleSize = (searchParams.get('size') || '1L') as '1L' | '5L' | '10L'
   const deliveryType = (searchParams.get('type') || 'pickup') as 'pickup' | 'delivery'
+  
+  const [pricePerLiter, setPricePerLiter] = useState(2000)
+  const [cartItems, setCartItems] = useState<Array<{size: '1L' | '5L' | '10L', quantity: number, price_per_unit: number}>>([])
 
-  const pricePerBottle = 2000
-  const subtotal = quantity * pricePerBottle
+  useEffect(() => {
+    // Fetch price per liter from settings
+    fetch('/api/admin/settings')
+      .then(res => res.json())
+      .then(data => {
+        const pricePerL = parseInt(data.price_per_liter) || 2000
+        setPricePerLiter(pricePerL)
+        
+        // Parse cart from URL or create single item for backward compatibility
+        const getPriceForSize = (size: '1L' | '5L' | '10L') => {
+          const liters = parseInt(size)
+          return liters * pricePerL
+        }
+        
+        if (cartParam) {
+          try {
+            const parsedCart = JSON.parse(decodeURIComponent(cartParam))
+            setCartItems(parsedCart)
+          } catch (e) {
+            console.error('Error parsing cart:', e)
+            // Fall back to single item format
+            setCartItems([{
+              size: bottleSize,
+              quantity: quantity,
+              price_per_unit: getPriceForSize(bottleSize)
+            }])
+          }
+        } else {
+          // Backward compatibility: single item
+          setCartItems([{
+            size: bottleSize,
+            quantity: quantity,
+            price_per_unit: getPriceForSize(bottleSize)
+          }])
+        }
+      })
+      .catch(err => console.error('Error fetching settings:', err))
+  }, [cartParam, quantity, bottleSize])
+
+  // Calculate subtotal from cart items
+  const subtotal = cartItems.reduce((sum, item) => sum + (item.quantity * item.price_per_unit), 0)
   const total = subtotal + deliveryFee - discountAmount
+  const totalQuantity = cartItems.reduce((sum, item) => sum + item.quantity, 0)
 
   const applyDiscountCode = async () => {
     if (!discountCode.trim()) {
@@ -129,7 +175,13 @@ function CheckoutContent() {
       return
     }
 
-    if (quantity < 1) {
+    if (cartItems.length === 0) {
+      alert('Please add items to your cart first')
+      return
+    }
+    
+    const totalInCart = cartItems.reduce((sum, item) => sum + item.quantity, 0)
+    if (totalInCart < 1) {
       alert('Please select at least 1 bottle')
       return
     }
@@ -147,7 +199,10 @@ function CheckoutContent() {
         phone: cleanPhone,
         email: formData.email?.trim() || undefined,
         address: fullAddress,
-        quantity,
+        order_items: cartItems.length > 0 ? cartItems : undefined, // New cart format
+        quantity: totalQuantity, // For backward compatibility
+        bottle_size: cartItems[0]?.size || bottleSize, // For backward compatibility
+        price_per_bottle: cartItems[0]?.price_per_unit, // For backward compatibility
         delivery_type: deliveryType,
         delivery_fee: deliveryFee || 0,
         payment_method: formData.payment_method,
@@ -460,21 +515,29 @@ function CheckoutContent() {
             </h2>
 
             <div className="space-y-4 mb-6">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Product:</span>
-                <span className="font-semibold">Fresh Palm Wine (1L)</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Quantity:</span>
-                <span className="font-semibold">{quantity} bottle(s)</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Price per bottle:</span>
-                <span className="font-semibold">₦{pricePerBottle.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Subtotal:</span>
-                <span className="font-semibold">₦{subtotal.toLocaleString()}</span>
+              {cartItems.map((item, index) => (
+                <div key={index} className="space-y-2 pb-3 border-b border-gray-200 last:border-0 last:pb-0">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Product:</span>
+                    <span className="font-semibold">Fresh Palm Wine ({item.size})</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Quantity:</span>
+                    <span className="font-semibold">{item.quantity} bottle{item.quantity > 1 ? 's' : ''}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Price per {item.size} bottle:</span>
+                    <span className="font-semibold">₦{item.price_per_unit.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-[#2d5a4a] font-semibold">
+                    <span>Subtotal:</span>
+                    <span>₦{(item.quantity * item.price_per_unit).toLocaleString()}</span>
+                  </div>
+                </div>
+              ))}
+              <div className="flex justify-between pt-2 border-t border-gray-300">
+                <span className="text-gray-600 font-semibold">Subtotal ({totalQuantity} items):</span>
+                <span className="font-semibold text-[#2d5a4a]">₦{subtotal.toLocaleString()}</span>
               </div>
               {deliveryFee > 0 && (
                 <div className="flex justify-between">

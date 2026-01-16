@@ -1,6 +1,12 @@
 import { supabase, pgPool } from './supabase'
 
 // Type definitions
+export interface OrderItem {
+  size: '1L' | '5L' | '10L'
+  quantity: number
+  price_per_unit: number
+}
+
 export interface Order {
   id: number
   order_number: string
@@ -8,7 +14,10 @@ export interface Order {
   phone: string
   email?: string
   address?: string
-  quantity: number
+  quantity: number // Keep for backward compatibility
+  bottle_size?: '1L' | '5L' | '10L' // Keep for backward compatibility
+  price_per_bottle?: number // Keep for backward compatibility
+  order_items?: OrderItem[] // New: array of items in cart
   delivery_type: string
   delivery_fee: number
   total_amount: number
@@ -228,7 +237,10 @@ export async function createOrder(orderData: {
   phone: string
   email?: string
   address?: string | null
-  quantity: number
+  quantity?: number // Optional for backward compatibility
+  bottle_size?: '1L' | '5L' | '10L' // Optional for backward compatibility
+  price_per_bottle?: number // Optional for backward compatibility
+  order_items?: OrderItem[] // New: cart items
   delivery_type: 'pickup' | 'delivery'
   delivery_fee: number
   payment_method: string
@@ -241,18 +253,52 @@ export async function createOrder(orderData: {
   }
 
   const stock = await getCurrentStock()
+  const pricePerLiter = parseInt(await getSetting('price_per_liter') || '2000')
   
-  if (orderData.quantity > stock.available_bottles) {
+  // Process order items - use cart items if provided, otherwise fall back to single item
+  let orderItems: OrderItem[] = []
+  let totalQuantity = 0
+  let subtotal = 0
+
+  if (orderData.order_items && orderData.order_items.length > 0) {
+    // New cart format
+    orderItems = orderData.order_items.map(item => ({
+      size: item.size,
+      quantity: item.quantity,
+      price_per_unit: item.price_per_unit || (parseInt(item.size) * pricePerLiter)
+    }))
+    totalQuantity = orderItems.reduce((sum, item) => sum + item.quantity, 0)
+    subtotal = orderItems.reduce((sum, item) => sum + (item.quantity * item.price_per_unit), 0)
+  } else {
+    // Backward compatibility: single item format
+    const quantity = orderData.quantity || 1
+    const bottleSize = orderData.bottle_size || '1L'
+    let pricePerBottle = orderData.price_per_bottle
+    if (!pricePerBottle) {
+      const liters = parseInt(bottleSize)
+      pricePerBottle = liters * pricePerLiter
+    }
+    
+    orderItems = [{
+      size: bottleSize,
+      quantity: quantity,
+      price_per_unit: pricePerBottle
+    }]
+    totalQuantity = quantity
+    subtotal = quantity * pricePerBottle
+  }
+  
+  if (totalQuantity > stock.available_bottles) {
     throw new Error('Insufficient stock')
   }
 
-  const pricePerBottle = parseInt(await getSetting('price_per_bottle') || '2000')
-  const subtotal = orderData.quantity * pricePerBottle
   const discountAmount = orderData.discount_amount || 0
   const totalAmount = subtotal + orderData.delivery_fee - discountAmount
 
   const orderNumber = `UPW${Date.now().toString().slice(-8)}`
-  const now = new Date().toISOString()
+  
+  // Keep backward compatibility fields for existing code
+  const firstItem = orderItems[0]
 
   const { data: newOrder, error: orderError } = await supabase
     .from('orders')
@@ -262,7 +308,10 @@ export async function createOrder(orderData: {
       phone: orderData.phone,
       email: orderData.email || null,
       address: orderData.address || null,
-      quantity: orderData.quantity,
+      quantity: totalQuantity, // Total quantity across all items
+      bottle_size: firstItem?.size || '1L', // First item size for backward compatibility
+      price_per_bottle: firstItem?.price_per_unit || pricePerLiter, // First item price for backward compatibility
+      order_items: orderItems, // New cart format
       delivery_type: orderData.delivery_type,
       delivery_fee: orderData.delivery_fee,
       total_amount: totalAmount,
@@ -292,8 +341,8 @@ export async function createOrder(orderData: {
     await supabase
       .from('stock')
       .update({
-        sold_bottles: currentStock.sold_bottles + orderData.quantity,
-        available_bottles: currentStock.available_bottles - orderData.quantity,
+        sold_bottles: currentStock.sold_bottles + totalQuantity,
+        available_bottles: currentStock.available_bottles - totalQuantity,
       })
       .eq('week_start_date', currentWeek)
   }

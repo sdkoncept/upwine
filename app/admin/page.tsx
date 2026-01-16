@@ -4,6 +4,12 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
+interface OrderItem {
+  size: '1L' | '5L' | '10L'
+  quantity: number
+  price_per_unit: number
+}
+
 interface Order {
   id: number
   order_number: string
@@ -11,7 +17,10 @@ interface Order {
   phone: string
   email?: string
   address?: string
-  quantity: number
+  quantity: number // Keep for backward compatibility
+  bottle_size?: '1L' | '5L' | '10L' // Keep for backward compatibility
+  price_per_bottle?: number // Keep for backward compatibility
+  order_items?: OrderItem[] // New: cart items
   delivery_fee: number
   total_amount: number
   delivery_type: string
@@ -43,6 +52,7 @@ interface SalesByDate {
 
 interface Settings {
   price_per_bottle: string
+  price_per_liter: string
   weekly_stock: string
   pickup_address: string
   delivery_fee_min: string
@@ -121,10 +131,11 @@ export default function AdminPage() {
   // Settings State
   const [settings, setSettings] = useState<Settings>({
     price_per_bottle: '2000',
+    price_per_liter: '2000',
     weekly_stock: '100',
     pickup_address: '24 Tony Anenih Avenue, G.R.A, Benin City',
-    delivery_fee_min: '800',
-    delivery_fee_max: '2200',
+    delivery_fee_min: '1600',
+    delivery_fee_max: '3000',
     admin_phone: '',
     admin_email: '',
   })
@@ -699,6 +710,10 @@ export default function AdminPage() {
   }
 
   const calculateSubtotal = (order: Order) => {
+    // If order has cart items, calculate from items, otherwise use total - delivery fee
+    if (order.order_items && order.order_items.length > 0) {
+      return order.order_items.reduce((sum, item) => sum + (item.quantity * item.price_per_unit), 0)
+    }
     return order.total_amount - order.delivery_fee
   }
 
@@ -919,8 +934,21 @@ export default function AdminPage() {
                           </p>
                         </div>
                         <div>
-                          <span className="text-gray-500">Quantity:</span>
-                          <p className="font-semibold">{lookupOrder.quantity} bottle(s)</p>
+                          <span className="text-gray-500">Items:</span>
+                          {lookupOrder.order_items && lookupOrder.order_items.length > 0 ? (
+                            <div className="space-y-1">
+                              {lookupOrder.order_items.map((item, idx) => (
+                                <p key={idx} className="font-semibold">
+                                  {item.quantity} × {item.size} @ ₦{item.price_per_unit.toLocaleString()} = ₦{(item.quantity * item.price_per_unit).toLocaleString()}
+                                </p>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="font-semibold">
+                              {lookupOrder.quantity} × {lookupOrder.bottle_size || '1L'} bottle{lookupOrder.quantity > 1 ? 's' : ''}
+                              {lookupOrder.price_per_bottle && ` @ ₦${lookupOrder.price_per_bottle.toLocaleString()}`}
+                            </p>
+                          )}
                         </div>
                         <div>
                           <span className="text-gray-500">Order Status:</span>
@@ -1089,7 +1117,17 @@ export default function AdminPage() {
                             {order.phone}
                           </a>
                         </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm">{order.quantity}</td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm">
+                          {order.order_items && order.order_items.length > 0 ? (
+                            <div className="space-y-1">
+                              {order.order_items.map((item, idx) => (
+                                <div key={idx}>{item.quantity}×{item.size}</div>
+                              ))}
+                            </div>
+                          ) : (
+                            <>{order.quantity} × {order.bottle_size || '1L'}</>
+                          )}
+                        </td>
                         <td className="px-4 py-4 whitespace-nowrap text-sm font-semibold">₦{order.total_amount.toLocaleString()}</td>
                         <td className="px-4 py-4 whitespace-nowrap text-sm hidden lg:table-cell">
                           <span className={`px-2 py-1 text-xs rounded-full ${
@@ -1719,14 +1757,20 @@ export default function AdminPage() {
               <div className="space-y-4">
                   <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Price per Bottle (₦)
+                    Price per Liter (₦)
                   </label>
                   <input
                     type="number"
-                    value={settings.price_per_bottle}
-                    onChange={(e) => setSettings({ ...settings, price_per_bottle: e.target.value })}
+                    value={settings.price_per_liter}
+                    onChange={(e) => setSettings({ ...settings, price_per_liter: e.target.value })}
                     className="w-full border-2 border-gray-300 rounded-lg py-2 px-4 focus:border-[#2d5a4a] focus:outline-none"
+                    placeholder="2000"
                   />
+                  <p className="text-xs text-gray-500 mt-1">
+                    1L: ₦{parseInt(settings.price_per_liter || '2000').toLocaleString()}, 
+                    5L: ₦{(parseInt(settings.price_per_liter || '2000') * 5).toLocaleString()}, 
+                    10L: ₦{(parseInt(settings.price_per_liter || '2000') * 10).toLocaleString()}
+                  </p>
                   </div>
                   <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1846,10 +1890,26 @@ export default function AdminPage() {
                 <div className="bg-gray-50 rounded-xl p-4">
                   <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">Order Summary</h3>
                   <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">{selectedOrder.quantity} × Palm Wine (1L)</span>
-                      <span className="font-medium">₦{calculateSubtotal(selectedOrder).toLocaleString()}</span>
-                    </div>
+                    {selectedOrder.order_items && selectedOrder.order_items.length > 0 ? (
+                      // Display cart items
+                      selectedOrder.order_items.map((item, index) => (
+                        <div key={index} className="flex justify-between mb-2 pb-2 border-b border-gray-200 last:border-0">
+                          <span className="text-gray-600">
+                            {item.quantity} × {item.size} @ ₦{item.price_per_unit.toLocaleString()}
+                          </span>
+                          <span className="font-medium">₦{(item.quantity * item.price_per_unit).toLocaleString()}</span>
+                        </div>
+                      ))
+                    ) : (
+                      // Backward compatibility: single item display
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">
+                          {selectedOrder.quantity} × Palm Wine ({selectedOrder.bottle_size || '1L'})
+                          {selectedOrder.price_per_bottle && ` @ ₦${selectedOrder.price_per_bottle.toLocaleString()}`}
+                        </span>
+                        <span className="font-medium">₦{calculateSubtotal(selectedOrder).toLocaleString()}</span>
+                      </div>
+                    )}
                     {selectedOrder.delivery_fee > 0 && (
                       <div className="flex justify-between">
                         <span className="text-gray-600">Delivery Fee</span>

@@ -151,7 +151,7 @@ export default function Home() {
               </p>
               <div className="mt-4 pt-4 border-t border-[#e8f0ec]">
                 <span className="inline-block bg-[#fff8e6] text-[#b8860b] px-4 py-2 rounded-full text-sm font-medium">
-                  ₦800 - ₦2,200 delivery fee
+                  ₦1,600 - ₦3,000 delivery fee
                 </span>
               </div>
             </div>

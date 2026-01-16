@@ -11,7 +11,10 @@ export async function POST(request: Request) {
       phone,
       email,
       address,
-      quantity,
+      order_items, // New: cart items
+      quantity, // Backward compatibility
+      bottle_size, // Backward compatibility
+      price_per_bottle, // Backward compatibility
       delivery_type,
       delivery_fee,
       payment_method,
@@ -33,7 +36,16 @@ export async function POST(request: Request) {
       )
     }
 
-    if (!quantity || quantity < 1) {
+    // Validate order items (new format) or quantity (old format)
+    if (order_items && order_items.length > 0) {
+      const totalQuantity = order_items.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0)
+      if (totalQuantity < 1) {
+        return NextResponse.json(
+          { error: 'Order must contain at least 1 item' },
+          { status: 400 }
+        )
+      }
+    } else if (!quantity || quantity < 1) {
       return NextResponse.json(
         { error: 'Quantity must be at least 1' },
         { status: 400 }
@@ -73,8 +85,27 @@ export async function POST(request: Request) {
     
     if (discount_code && discount_code.trim()) {
       try {
-        const pricePerBottle = parseInt(await getSetting('price_per_bottle') || '2000')
-        const orderSubtotal = quantity * pricePerBottle
+        // Calculate order total for discount validation
+        let orderSubtotal = 0
+        const pricePerLiter = parseInt(await getSetting('price_per_liter') || '2000')
+        
+        if (order_items && order_items.length > 0) {
+          // New cart format
+          orderSubtotal = order_items.reduce((sum: number, item: any) => {
+            const pricePerUnit = item.price_per_unit || (parseInt(item.size) * pricePerLiter)
+            return sum + (item.quantity * pricePerUnit)
+          }, 0)
+        } else {
+          // Backward compatibility: single item
+          let orderPricePerBottle = price_per_bottle
+          if (!orderPricePerBottle) {
+            const size = bottle_size || '1L'
+            const liters = parseInt(size)
+            orderPricePerBottle = liters * pricePerLiter
+          }
+          orderSubtotal = (quantity || 1) * orderPricePerBottle
+        }
+        
         const orderTotal = orderSubtotal + (delivery_fee || 0)
         
         // Validate discount code
@@ -104,7 +135,10 @@ export async function POST(request: Request) {
       phone: phone.trim(),
       email: email?.trim() || undefined,
       address: normalizedAddress,
-      quantity,
+      order_items: order_items || undefined, // New cart format
+      quantity: quantity || undefined, // Backward compatibility
+      bottle_size: bottle_size || '1L', // Backward compatibility
+      price_per_bottle: price_per_bottle || undefined, // Backward compatibility
       delivery_type,
       delivery_fee: delivery_fee || 0,
       payment_method,
