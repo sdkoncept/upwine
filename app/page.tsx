@@ -7,17 +7,38 @@ export default function Home() {
   const [stock, setStock] = useState({ available_bottles: 100, total_bottles: 100 })
 
   useEffect(() => {
-    fetch('/api/stock')
-      .then(res => res.json())
-      .then(data => setStock(data))
-      .catch(err => console.error('Error fetching stock:', err))
-
-    const interval = setInterval(() => {
-      fetch('/api/stock')
-        .then(res => res.json())
-        .then(data => setStock(data))
+    const fetchStock = () => {
+      // Add cache-busting timestamp to force fresh requests
+      const timestamp = new Date().getTime()
+      fetch(`/api/stock?t=${timestamp}`, {
+        cache: 'no-store',
+        method: 'GET',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      })
+        .then(res => {
+          if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`)
+          }
+          return res.json()
+        })
+        .then(data => {
+          if (data && data.available_bottles !== undefined) {
+            console.log('Stock fetched:', data.available_bottles) // Debug log
+            setStock(data)
+          }
+        })
         .catch(err => console.error('Error fetching stock:', err))
-    }, 30000)
+    }
+
+    // Fetch immediately
+    fetchStock()
+
+    // Refresh every 10 seconds for more frequent updates
+    const interval = setInterval(fetchStock, 10000)
 
     return () => clearInterval(interval)
   }, [])

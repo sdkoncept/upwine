@@ -78,8 +78,19 @@ function getWeekStartDate(): string {
   const now = new Date()
   const day = now.getDay()
   const diff = now.getDate() - day + (day === 0 ? -6 : 1)
-  const monday = new Date(now.setDate(diff))
+  // Create new date object to avoid mutation
+  const monday = new Date(now.getFullYear(), now.getMonth(), diff)
   return monday.toISOString().split('T')[0]
+}
+
+function getTodayDate(): string {
+  // Returns today's date in YYYY-MM-DD format using local timezone
+  // This ensures consistency between server and database
+  const today = new Date()
+  const year = today.getFullYear()
+  const month = String(today.getMonth() + 1).padStart(2, '0')
+  const day = String(today.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 // ============ INITIALIZATION ============
@@ -91,12 +102,12 @@ export async function initDatabase() {
   }
 
   try {
-    // Ensure current week stock exists
-    const currentWeek = getWeekStartDate()
+    // Ensure today's stock exists (changed from weekly to daily)
+    const todayDate = getTodayDate()
     const { data: existingStock, error } = await supabase
       .from('stock')
       .select('*')
-      .eq('week_start_date', currentWeek)
+      .eq('week_start_date', todayDate)
       .single()
 
     if (error && error.code !== 'PGRST116') {
@@ -105,7 +116,7 @@ export async function initDatabase() {
 
     if (!existingStock) {
       await supabase.from('stock').insert({
-        week_start_date: currentWeek,
+        week_start_date: todayDate,
         total_bottles: 100,
         sold_bottles: 0,
         available_bottles: 100,
@@ -123,45 +134,82 @@ export async function getCurrentStock() {
     throw new Error('Supabase not configured')
   }
 
-  const currentWeek = getWeekStartDate()
-  const { data, error } = await supabase
+  // Use today's date for daily stock (changed from weekly)
+  const todayDate = getTodayDate()
+  
+  // Direct query: Get the most recent stock entry for today (highest ID = most recent)
+  // This ensures we always get the latest entry even if duplicates exist
+  const { data: allStock, error: listError } = await supabase
     .from('stock')
     .select('*')
-    .eq('week_start_date', currentWeek)
-    .single()
+    .eq('week_start_date', todayDate)
+    .order('id', { ascending: false })
+    .limit(1)
 
-  if (error && error.code !== 'PGRST116') {
-    console.error('Error fetching stock:', error)
+  let stock = allStock && allStock.length > 0 ? allStock[0] : null
+  
+  if (listError && listError.code !== 'PGRST116') {
+    console.error('[getCurrentStock] Error fetching stock:', listError)
+  }
+  
+  if (stock) {
+    console.log(`[getCurrentStock] Date: ${todayDate}, Stock ID: ${stock.id}, Available: ${stock.available_bottles}`)
+    return {
+      available_bottles: stock.available_bottles,
+      total_bottles: stock.total_bottles,
+      sold_bottles: stock.sold_bottles,
+    }
   }
 
-  if (!data) {
-    // Create default stock for current week
-    const { data: newStock } = await supabase
-      .from('stock')
-      .insert({
-        week_start_date: currentWeek,
-        total_bottles: 100,
-        sold_bottles: 0,
-        available_bottles: 100,
-      })
-      .select()
-      .single()
+  // No stock entry found for today - create one with 100 bottles
+  console.log(`[getCurrentStock] No stock found for ${todayDate}, creating new entry`)
+  const { data: newStock, error: insertError } = await supabase
+    .from('stock')
+    .insert({
+      week_start_date: todayDate,
+      total_bottles: 100,
+      sold_bottles: 0,
+      available_bottles: 100,
+    })
+    .select()
+    .single()
 
-    if (newStock) {
-      return {
-        available_bottles: newStock.available_bottles,
-        total_bottles: newStock.total_bottles,
-        sold_bottles: newStock.sold_bottles,
+  if (insertError) {
+    console.error('[getCurrentStock] Error creating stock:', insertError)
+    // If insert fails due to conflict, try to update existing one
+    if (insertError.code === '23505') { // Unique violation
+      const { data: updatedStock } = await supabase
+        .from('stock')
+        .update({
+          total_bottles: 100,
+          sold_bottles: 0,
+          available_bottles: 100,
+        })
+        .eq('week_start_date', todayDate)
+        .select()
+        .single()
+      
+      if (updatedStock) {
+        return {
+          available_bottles: updatedStock.available_bottles,
+          total_bottles: updatedStock.total_bottles,
+          sold_bottles: updatedStock.sold_bottles,
+        }
       }
     }
     return { available_bottles: 100, total_bottles: 100, sold_bottles: 0 }
   }
 
-  return {
-    available_bottles: data.available_bottles,
-    total_bottles: data.total_bottles,
-    sold_bottles: data.sold_bottles,
+  if (newStock) {
+    console.log(`[getCurrentStock] Created stock: ID ${newStock.id}, Available: ${newStock.available_bottles}`)
+    return {
+      available_bottles: newStock.available_bottles,
+      total_bottles: newStock.total_bottles,
+      sold_bottles: newStock.sold_bottles,
+    }
   }
+  
+  return { available_bottles: 100, total_bottles: 100, sold_bottles: 0 }
 }
 
 export async function resetWeeklyStock(bottles: number = 100) {
@@ -169,11 +217,74 @@ export async function resetWeeklyStock(bottles: number = 100) {
     throw new Error('Supabase not configured')
   }
 
-  const currentWeek = getWeekStartDate()
+  // Use today's date for daily stock reset (midnight reset)
+  const todayDate = getTodayDate()
+  
+  // First, try to update existing entry for today
+  const { data: existing, error: updateError } = await supabase
+    .from('stock')
+    .update({
+      total_bottles: bottles,
+      sold_bottles: 0,
+      available_bottles: bottles,
+    })
+    .eq('week_start_date', todayDate)
+    .select()
+    .single()
+
+  // If no existing entry, create new one
+  if (!existing || updateError) {
+    const { error: insertError } = await supabase
+      .from('stock')
+      .insert({
+        week_start_date: todayDate,
+        total_bottles: bottles,
+        sold_bottles: 0,
+        available_bottles: bottles,
+      })
+
+    if (insertError) {
+      // If insert fails, try upsert as fallback
+      const { error: upsertError } = await supabase
+        .from('stock')
+        .upsert({
+          week_start_date: todayDate,
+          total_bottles: bottles,
+          sold_bottles: 0,
+          available_bottles: bottles,
+        }, {
+          onConflict: 'week_start_date'
+        })
+
+      if (upsertError) {
+        throw new Error(`Failed to reset stock: ${upsertError.message}`)
+      }
+    }
+  }
+  
+  // Verify the update worked
+  const { data: verification, error: verifyError } = await supabase
+    .from('stock')
+    .select('available_bottles, week_start_date')
+    .eq('week_start_date', todayDate)
+    .single()
+
+  if (verifyError || !verification || verification.available_bottles !== bottles) {
+    throw new Error(`Stock reset verification failed. Expected ${bottles}, got ${verification?.available_bottles || 'null'}`)
+  }
+}
+
+// Daily stock reset function (for cron jobs)
+export async function resetDailyStock(bottles: number = 100) {
+  if (!supabase) {
+    throw new Error('Supabase not configured')
+  }
+
+  const todayDate = getTodayDate()
   const { error } = await supabase
     .from('stock')
     .upsert({
-      week_start_date: currentWeek,
+      week_start_date: todayDate,
       total_bottles: bottles,
       sold_bottles: 0,
       available_bottles: bottles,
@@ -182,8 +293,10 @@ export async function resetWeeklyStock(bottles: number = 100) {
     })
 
   if (error) {
-    throw new Error(`Failed to reset stock: ${error.message}`)
+    throw new Error(`Failed to reset daily stock: ${error.message}`)
   }
+
+  return { success: true, date: todayDate, bottles }
 }
 
 // ============ SETTINGS FUNCTIONS ============
@@ -329,12 +442,12 @@ export async function createOrder(orderData: {
     throw new Error(`Failed to create order: ${orderError.message}`)
   }
 
-  // Update stock
-  const currentWeek = getWeekStartDate()
+  // Update stock (using today's date for daily stock)
+  const todayDate = getTodayDate()
   const { data: currentStock } = await supabase
     .from('stock')
     .select('*')
-    .eq('week_start_date', currentWeek)
+    .eq('week_start_date', todayDate)
     .single()
 
   if (currentStock) {
@@ -344,7 +457,7 @@ export async function createOrder(orderData: {
         sold_bottles: currentStock.sold_bottles + totalQuantity,
         available_bottles: currentStock.available_bottles - totalQuantity,
       })
-      .eq('week_start_date', currentWeek)
+      .eq('week_start_date', todayDate)
   }
 
   return { orderNumber, totalAmount }

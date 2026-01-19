@@ -225,14 +225,21 @@ export default function AdminPage() {
     setLoading(true)
     try {
       const [ordersRes, stockRes] = await Promise.all([
-        fetch('/api/orders'),
-        fetch('/api/admin/stock')
+        fetch('/api/orders', { cache: 'no-store' }),
+        fetch('/api/admin/stock', { 
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache',
+          },
+        })
       ])
       const ordersData = await ordersRes.json()
       const stockData = await stockRes.json()
       setOrders(ordersData)
-      setStock(stockData)
-      setNewStock(stockData.total_bottles)
+      if (stockData && stockData.available_bottles !== undefined) {
+        setStock(stockData)
+        setNewStock(stockData.total_bottles || stockData.available_bottles)
+      }
     } catch (error) {
       console.error('Error fetching data:', error)
     } finally {
@@ -843,15 +850,37 @@ export default function AdminPage() {
   }
 
   const resetStock = async () => {
-    if (!confirm(`Reset weekly stock to ${newStock} bottles?`)) return
+    if (!confirm(`Reset today's stock to ${newStock} bottles?`)) return
 
     try {
-      await fetch('/api/admin/stock', {
+      const res = await fetch('/api/admin/stock', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bottles: newStock })
+        body: JSON.stringify({ bottles: newStock }),
+        cache: 'no-store',
       })
+      
+      const data = await res.json()
+      
+      if (data.error) {
+        alert(data.error)
+        return
+      }
+      
       alert('Stock reset successfully!')
+      
+      // Force refresh stock immediately
+      const stockRes = await fetch('/api/admin/stock', {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
+      })
+      const stockData = await stockRes.json()
+      if (stockData && stockData.available_bottles !== undefined) {
+        setStock(stockData)
+      }
+      
       fetchData()
     } catch (error) {
       console.error('Error resetting stock:', error)
@@ -1562,7 +1591,7 @@ export default function AdminPage() {
                 <span>🔄</span> Reset Stock
               </h2>
               <p className="text-gray-600 mb-4">
-                Reset the weekly stock count. Typically done every Monday morning for a new batch.
+                Reset today's stock count. Stock automatically resets to 100 bottles every day at midnight.
               </p>
               <div className="space-y-4">
                 <div>
