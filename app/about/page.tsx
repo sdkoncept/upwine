@@ -3,7 +3,7 @@ export default function AboutPage() {
     <main className="min-h-screen py-16">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <h1 className="text-4xl font-bold text-primary mb-8 text-center">
-          About Upwine
+          About Upwyne
         </h1>
 
         <div className="bg-white rounded-lg shadow-lg p-8 mb-8">
@@ -13,7 +13,7 @@ export default function AboutPage() {
           
           <div className="prose prose-lg max-w-none text-gray-700 space-y-4">
             <p>
-              Upwine is a seasonal palm wine brand based in Benin City. We tap from our own farm 
+              Upwyne is a seasonal palm wine brand based in Benin City. We tap from our own farm 
               and bottle under clean conditions. Our goal is to bring safe, fresh palm wine to homes, 
               offices, restaurants, and events in the city.
             </p>

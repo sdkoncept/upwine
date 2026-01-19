@@ -967,6 +967,12 @@ export default function AdminPage() {
             <p className="text-gray-600 mt-1">Manage your Upwyne business</p>
           </div>
           <div className="flex items-center gap-3">
+            <a
+              href="https://profit-pilot-16d6909c.base44.app"
+              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition flex items-center gap-2"
+            >
+              <span>💰</span> Profit & Loss Calculator
+            </a>
             <button
               onClick={fetchData}
               className="bg-[#2d5a4a] text-white px-4 py-2 rounded-lg hover:bg-[#1e4035] transition flex items-center gap-2"
@@ -1585,6 +1591,26 @@ export default function AdminPage() {
         {/* Sales Tab */}
         {activeTab === 'sales' && (
           <div className="space-y-6">
+            {/* Profit & Loss Calculator Link */}
+            <div className="bg-gradient-to-r from-purple-600 to-purple-700 rounded-xl shadow-lg p-6 text-white">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                  <h3 className="text-xl font-semibold mb-2 flex items-center gap-2">
+                    <span>💰</span> Profit & Loss Calculator
+                  </h3>
+                  <p className="text-purple-100 text-sm">
+                    Calculate your business profitability and track financial performance
+                  </p>
+                </div>
+                <a
+                  href="https://profit-pilot-16d6909c.base44.app"
+                  className="bg-white text-purple-600 px-6 py-3 rounded-lg font-semibold hover:bg-purple-50 transition flex items-center gap-2 whitespace-nowrap"
+                >
+                  Open Calculator
+                  <span>→</span>
+                </a>
+              </div>
+            </div>
             {/* Filters */}
             <div className="bg-white rounded-xl shadow-md p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
